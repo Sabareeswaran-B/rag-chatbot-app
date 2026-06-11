@@ -1,0 +1,85 @@
+<div class="chat-container">
+  <div class="chat-header">
+    <div class="header-info">
+      <div class="ai-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+        </svg>
+      </div>
+      <div>
+        <h2>RAG Assistant</h2>
+        <span class="status">Powered by GPT-4o mini</span>
+      </div>
+    </div>
+    <button class="clear-btn" (click)="clearChat()" title="Clear chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="messages-area">
+    @for (msg of messages(); track msg.id) {
+      <div class="message" [class.user-message]="msg.role === 'user'" [class.assistant-message]="msg.role === 'assistant'">
+        @if (msg.role === 'assistant') {
+          <div class="avatar assistant-avatar">AI</div>
+        }
+        <div class="message-bubble">
+          <div class="message-content">
+            @if (msg.displayContent) {
+              <span>{{ msg.displayContent }}</span>
+            }
+            @if (msg.isTyping && !isLoading()) {
+              <span class="typing-cursor">|</span>
+            }
+            @if (msg.isTyping && isLoading()) {
+              <div class="thinking-dots">
+                <span></span><span></span><span></span>
+              </div>
+            }
+          </div>
+          @if (msg.sources && msg.sources.length > 0 && !msg.isTyping) {
+            <div class="sources">
+              <span class="sources-label">Sources:</span>
+              @for (source of msg.sources; track source) {
+                <span class="source-chip">{{ source }}</span>
+              }
+            </div>
+          }
+          <span class="message-time">{{ msg.timestamp | date:'HH:mm' }}</span>
+        </div>
+        @if (msg.role === 'user') {
+          <div class="avatar user-avatar">You</div>
+        }
+      </div>
+    }
+    <div #messagesEnd></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-wrapper" [class.disabled]="isLoading()">
+      <textarea
+        [(ngModel)]="query"
+        (keydown)="onKeyDown($event)"
+        placeholder="Ask a question about your documents..."
+        rows="1"
+        [disabled]="isLoading()"
+        class="chat-input">
+      </textarea>
+      <button
+        class="send-btn"
+        (click)="sendMessage()"
+        [disabled]="isLoading() || !query().trim()"
+        title="Send message">
+        @if (isLoading()) {
+          <div class="loading-spinner"></div>
+        } @else {
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        }
+      </button>
+    </div>
+    <p class="input-hint">Press Enter to send, Shift+Enter for new line</p>
+  </div>
+</div>

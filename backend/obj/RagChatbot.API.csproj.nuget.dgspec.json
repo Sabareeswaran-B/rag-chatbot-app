@@ -1,0 +1,99 @@
+{
+  "format": 1,
+  "restore": {
+    "/Users/sabareeswaranb/rag-chatbot-app/backend/RagChatbot.API.csproj": {}
+  },
+  "projects": {
+    "/Users/sabareeswaranb/rag-chatbot-app/backend/RagChatbot.API.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/Users/sabareeswaranb/rag-chatbot-app/backend/RagChatbot.API.csproj",
+        "projectName": "RagChatbot.API",
+        "projectPath": "/Users/sabareeswaranb/rag-chatbot-app/backend/RagChatbot.API.csproj",
+        "packagesPath": "/Users/sabareeswaranb/.nuget/packages/",
+        "outputPath": "/Users/sabareeswaranb/rag-chatbot-app/backend/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/Users/sabareeswaranb/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "DocumentFormat.OpenXml": {
+              "target": "Package",
+              "version": "[3.5.1, )"
+            },
+            "Microsoft.AspNetCore.Cors": {
+              "target": "Package",
+              "version": "[2.3.11, )"
+            },
+            "Microsoft.AspNetCore.OpenApi": {
+              "target": "Package",
+              "version": "[8.0.14, )"
+            },
+            "MongoDB.Driver": {
+              "target": "Package",
+              "version": "[3.9.0, )"
+            },
+            "OpenAI": {
+              "target": "Package",
+              "version": "[2.2.0, )"
+            },
+            "PdfPig": {
+              "target": "Package",
+              "version": "[0.1.14, )"
+            },
+            "Swashbuckle.AspNetCore": {
+              "target": "Package",
+              "version": "[6.6.2, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.407/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}
