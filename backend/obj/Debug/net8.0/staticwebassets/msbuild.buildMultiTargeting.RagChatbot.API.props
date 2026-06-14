@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="../build/RagChatbot.API.props" />
-</Project>
