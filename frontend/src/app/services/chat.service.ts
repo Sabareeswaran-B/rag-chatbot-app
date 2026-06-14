@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 export interface ChatRequest {
   query: string;
+  sessionId?: string | null;
 }
 
 export interface ChatResponse {
@@ -12,6 +13,8 @@ export interface ChatResponse {
   reasoning?: string;
   success: boolean;
   error?: string;
+  sessionId?: string;
+  sessionName?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -19,7 +22,7 @@ export class ChatService {
   private http = inject(HttpClient);
   private baseUrl = 'http://localhost:5000/api';
 
-  sendMessage(query: string): Observable<ChatResponse> {
-    return this.http.post<ChatResponse>(`${this.baseUrl}/chat`, { query });
+  sendMessage(query: string, sessionId?: string | null): Observable<ChatResponse> {
+    return this.http.post<ChatResponse>(`${this.baseUrl}/chat`, { query, sessionId });
   }
 }

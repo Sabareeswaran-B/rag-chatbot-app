@@ -14,8 +14,7 @@
 }
 
 .loading-ring {
-  width: 40px;
-  height: 40px;
+  width: 40px; height: 40px;
   border: 3px solid #1e2130;
   border-top-color: #6366f1;
   border-radius: 50%;
@@ -37,133 +36,58 @@
   z-index: 100;
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+.logo { display: flex; align-items: center; gap: 10px; }
 
 .logo-icon {
-  width: 34px;
-  height: 34px;
+  width: 34px; height: 34px;
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   svg { width: 18px; height: 18px; color: white; }
 }
 
-.logo-text {
-  font-size: 18px;
-  font-weight: 700;
-  color: #e2e8f0;
-  .accent { color: #6366f1; }
-}
+.logo-text { font-size: 18px; font-weight: 700; color: #e2e8f0; .accent { color: #6366f1; } }
 
 .tab-nav {
-  display: flex;
-  background: #0f1117;
-  border: 1px solid #1e2130;
-  border-radius: 10px;
-  padding: 3px;
-  gap: 2px;
+  display: flex; background: #0f1117;
+  border: 1px solid #1e2130; border-radius: 10px; padding: 3px; gap: 2px;
 }
 
 .tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  border: none;
-  border-radius: 7px;
-  background: none;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 16px; border: none; border-radius: 7px;
+  background: none; color: #64748b; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
   svg { width: 15px; height: 15px; }
   &:hover { color: #94a3b8; }
-  &.active {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white;
-    box-shadow: 0 2px 8px rgba(99,102,241,0.3);
-  }
+  &.active { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; box-shadow: 0 2px 8px rgba(99,102,241,0.3); }
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.username {
-  font-size: 13px;
-  color: #94a3b8;
-  font-weight: 500;
-}
-
+.header-right { display: flex; align-items: center; gap: 10px; }
+.user-info { display: flex; align-items: center; gap: 8px; }
+.username { font-size: 13px; color: #94a3b8; font-weight: 500; }
 .role-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  &.admin {
-    background: rgba(99,102,241,0.15);
-    color: #a5b4fc;
-    border: 1px solid rgba(99,102,241,0.3);
-  }
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+  &.admin { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
 }
-
 .logout-btn {
-  background: none;
-  border: 1px solid #1e2130;
-  border-radius: 8px;
-  padding: 7px;
-  cursor: pointer;
-  color: #64748b;
-  display: flex;
-  transition: all 0.2s;
+  background: none; border: 1px solid #1e2130; border-radius: 8px;
+  padding: 7px; cursor: pointer; color: #64748b; display: flex; transition: all 0.2s;
   svg { width: 16px; height: 16px; }
   &:hover { background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.3); }
 }
-
-.anon-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #64748b;
-  svg { width: 14px; height: 14px; }
-}
-
+.anon-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; svg { width: 14px; height: 14px; } }
 .login-btn {
-  background: none;
-  border: 1px solid #6366f1;
-  border-radius: 8px;
-  padding: 6px 14px;
-  color: #a5b4fc;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
+  background: none; border: 1px solid #6366f1; border-radius: 8px;
+  padding: 6px 14px; color: #a5b4fc; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
   &:hover { background: rgba(99,102,241,0.1); }
 }
 
+/* Full height, no padding — chat handles its own layout */
 .app-main {
   flex: 1;
-  padding: 24px;
-  max-width: 900px;
-  width: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }

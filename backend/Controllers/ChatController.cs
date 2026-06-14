@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RagChatbot.API.Models;
@@ -9,17 +10,19 @@ namespace RagChatbot.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-public class ChatController : ControllerBase
+public class ChatController(IChatService chatService) : ControllerBase
 {
-    private readonly IChatService _chatService;
-    public ChatController(IChatService chatService) => _chatService = chatService;
+    private string GetUserId() =>
+        User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+        ?? Request.Headers["X-Anonymous-Id"].FirstOrDefault()
+        ?? HttpContext.Connection.RemoteIpAddress?.ToString()
+        ?? "anonymous";
 
     /// <summary>
-    /// Ask a question. The API embeds the query, retrieves the top-5 relevant document chunks via
-    /// vector search, and sends them as context to GPT-4o-mini to generate a grounded answer.
-    /// Works for both authenticated users and anonymous users (no JWT required).
+    /// Ask a question. Embeds query, retrieves top-5 chunks via vector search, generates a grounded
+    /// answer with GPT-4o-mini, saves to session history, and returns sessionId for continuity.
+    /// Works for authenticated users and anonymous users.
     /// </summary>
-    /// <param name="request">The user's question and an optional anonymous identifier.</param>
     [HttpPost]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ChatResponse), StatusCodes.Status200OK)]
@@ -30,14 +33,10 @@ public class ChatController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Query))
             return BadRequest(new ChatResponse { Success = false, Error = "Query cannot be empty." });
 
-        var anonymousId = request.AnonymousId
-            ?? Request.Headers["X-Anonymous-Id"].FirstOrDefault()
-            ?? HttpContext.Connection.RemoteIpAddress?.ToString()
-            ?? "unknown";
-
         try
         {
-            var response = await _chatService.GetAnswerAsync(request.Query);
+            var userId = GetUserId();
+            var response = await chatService.GetAnswerAsync(request.Query, request.SessionId, userId);
             return Ok(response);
         }
         catch (Exception ex)

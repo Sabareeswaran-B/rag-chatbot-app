@@ -29,13 +29,33 @@
         <member name="T:RagChatbot.API.Controllers.ChatController">
             <summary>Chat — send a question and receive an AI answer grounded in uploaded documents.</summary>
         </member>
+        <member name="M:RagChatbot.API.Controllers.ChatController.#ctor(RagChatbot.API.Services.IChatService)">
+            <summary>Chat — send a question and receive an AI answer grounded in uploaded documents.</summary>
+        </member>
         <member name="M:RagChatbot.API.Controllers.ChatController.Chat(RagChatbot.API.Models.ChatRequest)">
             <summary>
-            Ask a question. The API embeds the query, retrieves the top-5 relevant document chunks via
-            vector search, and sends them as context to GPT-4o-mini to generate a grounded answer.
-            Works for both authenticated users and anonymous users (no JWT required).
+            Ask a question. Embeds query, retrieves top-5 chunks via vector search, generates a grounded
+            answer with GPT-4o-mini, saves to session history, and returns sessionId for continuity.
+            Works for authenticated users and anonymous users.
             </summary>
-            <param name="request">The user's question and an optional anonymous identifier.</param>
+        </member>
+        <member name="T:RagChatbot.API.Controllers.ChatHistoryController">
+            <summary>Chat history — list, retrieve, and delete conversation sessions per user.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.ChatHistoryController.#ctor(RagChatbot.API.Services.IChatHistoryRepository)">
+            <summary>Chat history — list, retrieve, and delete conversation sessions per user.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.ChatHistoryController.GetHistory">
+            <summary>Get the 30 most recent chat sessions for the current user (messages excluded).</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.ChatHistoryController.GetSession(System.String)">
+            <summary>Get a specific session including all messages.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.ChatHistoryController.DeleteSession(System.String)">
+            <summary>Delete a specific chat session.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.ChatHistoryController.ClearAll">
+            <summary>Clear all chat history for the current user.</summary>
         </member>
         <member name="T:RagChatbot.API.Controllers.FileController">
             <summary>File management — upload documents, list indexed files, and remove them. Admin only.</summary>

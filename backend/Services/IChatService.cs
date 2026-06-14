@@ -4,5 +4,5 @@ namespace RagChatbot.API.Services;
 
 public interface IChatService
 {
-    Task<ChatResponse> GetAnswerAsync(string query);
+    Task<ChatResponse> GetAnswerAsync(string query, string? sessionId, string userId);
 }

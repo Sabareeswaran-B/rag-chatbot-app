@@ -1,86 +1,142 @@
-<div class="chat-container">
-  <div class="chat-header">
-    <div class="header-info">
-      <div class="ai-avatar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-        </svg>
-      </div>
-      <div>
-        <h2>RAG Assistant</h2>
-        <span class="status">Powered by GPT-4o mini</span>
-      </div>
-    </div>
-    <button class="clear-btn" (click)="clearChat()" title="Clear chat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-      </svg>
-    </button>
-  </div>
+<div class="chat-wrapper">
 
-  <div class="messages-area">
-    @for (msg of messages(); track msg.id) {
-      <div class="message" [class.user-message]="msg.role === 'user'" [class.assistant-message]="msg.role === 'assistant'">
-        @if (msg.role === 'assistant') {
-          <div class="avatar assistant-avatar">AI</div>
-        }
-        <div class="message-bubble">
-          <div class="message-content">
-            @if (msg.displayContent) {
-              <span>{{ msg.displayContent }}</span>
-            }
-            @if (msg.isTyping && !isLoading()) {
-              <span class="typing-cursor">|</span>
-            }
-            @if (msg.isTyping && isLoading()) {
-              <div class="thinking-dots">
-                <span></span><span></span><span></span>
-              </div>
-            }
+  <!-- Sidebar -->
+  <aside class="sidebar" [class.collapsed]="!sidebarOpen()">
+    <div class="sidebar-header">
+      @if (sidebarOpen()) { <span class="sidebar-title">Recents</span> }
+      <button class="icon-btn sidebar-toggle" (click)="toggleSidebar()" [title]="sidebarOpen() ? 'Collapse' : 'Expand'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          @if (sidebarOpen()) {
+            <polyline points="15 18 9 12 15 6"/>
+          } @else {
+            <polyline points="9 18 15 12 9 6"/>
+          }
+        </svg>
+      </button>
+    </div>
+
+    @if (sidebarOpen()) {
+      <div class="sidebar-actions">
+        <button class="new-chat-btn" (click)="newChat()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New Chat
+        </button>
+        <button class="icon-btn" [class.active]="showSearch()" (click)="toggleSearch()" title="Search chats">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </button>
+        <button class="icon-btn danger" (click)="clearAll()" title="Clear all history">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
+        </button>
+      </div>
+
+      @if (showSearch()) {
+        <div class="search-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)"
+            placeholder="Search chats..." class="search-input" autocomplete="off">
+        </div>
+      }
+
+      <div class="session-list">
+        @if (isLoadingHistory()) {
+          <div class="list-state"><div class="mini-spinner"></div></div>
+        } @else if (filteredSessions().length === 0) {
+          <div class="list-state">
+            <p>{{ showSearch() ? 'No results found' : 'No chat history yet' }}</p>
           </div>
-          @if (msg.sources && msg.sources.length > 0 && !msg.isTyping) {
-            <div class="sources">
-              <span class="sources-label">Sources:</span>
-              @for (source of msg.sources; track source) {
-                <span class="source-chip">{{ source }}</span>
-              }
+        } @else {
+          @for (session of filteredSessions(); track session.id) {
+            <div class="session-item" [class.active]="currentSessionId() === session.id"
+              (click)="loadSession(session)">
+              <div class="session-info">
+                <span class="session-name">{{ session.name }}</span>
+                <span class="session-meta">{{ formatSessionDate(session.updatedAt) }}</span>
+              </div>
+              <button class="delete-session-btn" (click)="deleteSession($event, session.id)" title="Delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
           }
-          <span class="message-time">{{ msg.timestamp | date:'HH:mm' }}</span>
-        </div>
-        @if (msg.role === 'user') {
-          <div class="avatar user-avatar">You</div>
         }
       </div>
     }
-    <div #messagesEnd></div>
-  </div>
+  </aside>
 
-  <div class="input-area">
-    <div class="input-wrapper" [class.disabled]="isLoading()">
-      <textarea
-        [ngModel]="query()"
-        (ngModelChange)="query.set($event)"
-        (keydown)="onKeyDown($event)"
-        placeholder="Ask a question about your documents..."
-        rows="1"
-        [disabled]="isLoading()"
-        class="chat-input">
-      </textarea>
-      <button
-        class="send-btn"
-        (click)="sendMessage()"
-        [disabled]="isLoading() || !query().trim()"
-        title="Send message">
-        @if (isLoading()) {
-          <div class="loading-spinner"></div>
-        } @else {
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+  <!-- Chat Main -->
+  <div class="chat-main">
+    <div class="chat-container">
+
+      <div class="chat-header">
+        <div class="header-info">
+          <div class="ai-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+            </svg>
+          </div>
+          <div>
+            <h2>RAG Assistant</h2>
+            <span class="status">Powered by GPT-4o mini</span>
+          </div>
+        </div>
+        <button class="icon-btn" (click)="newChat()" title="New chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
           </svg>
+        </button>
+      </div>
+
+      <div class="messages-area">
+        @for (msg of messages(); track msg.id) {
+          <div class="message" [class.user-message]="msg.role === 'user'" [class.assistant-message]="msg.role === 'assistant'">
+            @if (msg.role === 'assistant') { <div class="avatar assistant-avatar">AI</div> }
+            <div class="message-bubble">
+              <div class="message-content">
+                @if (msg.displayContent) { <span>{{ msg.displayContent }}</span> }
+                @if (msg.isTyping && !isLoading()) { <span class="typing-cursor">|</span> }
+                @if (msg.isTyping && isLoading()) {
+                  <div class="thinking-dots"><span></span><span></span><span></span></div>
+                }
+              </div>
+              @if (msg.sources && msg.sources.length > 0 && !msg.isTyping) {
+                <div class="sources">
+                  <span class="sources-label">Sources:</span>
+                  @for (source of msg.sources; track source) {
+                    <span class="source-chip">{{ source }}</span>
+                  }
+                </div>
+              }
+              <span class="message-time">{{ msg.timestamp | date:'HH:mm' }}</span>
+            </div>
+            @if (msg.role === 'user') { <div class="avatar user-avatar">You</div> }
+          </div>
         }
-      </button>
+        <div #messagesEnd></div>
+      </div>
+
+      <div class="input-area">
+        <div class="input-wrapper" [class.disabled]="isLoading()">
+          <textarea [ngModel]="query()" (ngModelChange)="query.set($event)"
+            (keydown)="onKeyDown($event)" placeholder="Ask a question about your documents..."
+            rows="1" [disabled]="isLoading()" class="chat-input"></textarea>
+          <button class="send-btn" (click)="sendMessage()" [disabled]="isLoading() || !query().trim()">
+            @if (isLoading()) { <div class="loading-spinner"></div> }
+            @else { <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg> }
+          </button>
+        </div>
+        <p class="input-hint">Enter to send · Shift+Enter for new line</p>
+      </div>
+
     </div>
-    <p class="input-hint">Press Enter to send, Shift+Enter for new line</p>
   </div>
 </div>

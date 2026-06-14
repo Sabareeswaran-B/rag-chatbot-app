@@ -7,35 +7,35 @@ public class ChatService : IChatService
 {
     private readonly IEmbeddingService _embeddingService;
     private readonly IMongoDbService _mongoDbService;
+    private readonly IChatHistoryRepository _historyRepo;
     private readonly ChatClient _chatClient;
 
-    public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService, IConfiguration configuration)
+    public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService,
+        IChatHistoryRepository historyRepo, IConfiguration configuration)
     {
         _embeddingService = embeddingService;
         _mongoDbService = mongoDbService;
+        _historyRepo = historyRepo;
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
         _chatClient = new ChatClient("gpt-4o-mini", apiKey);
     }
 
-    public async Task<ChatResponse> GetAnswerAsync(string query)
+    public async Task<ChatResponse> GetAnswerAsync(string query, string? sessionId, string userId)
     {
-        // 1. Embed the query
         var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query);
-
-        // 2. Vector search - get top 5 relevant chunks
         var relevantChunks = await _mongoDbService.VectorSearchAsync(queryEmbedding, 5);
 
         if (relevantChunks.Count == 0)
         {
-            return new ChatResponse
+            var noDocResponse = new ChatResponse
             {
                 Answer = "I don't have any relevant documents to answer your question. Please upload some documents first.",
-                Sources = [],
-                Success = true
+                Sources = [], Success = true
             };
+            await PersistToSessionAsync(sessionId, userId, query, noDocResponse);
+            return noDocResponse;
         }
 
-        // 3. Build context from chunks
         var contextBuilder = new System.Text.StringBuilder();
         for (int i = 0; i < relevantChunks.Count; i++)
         {
@@ -44,7 +44,6 @@ public class ChatService : IChatService
             contextBuilder.AppendLine();
         }
 
-        // 4. Build the prompt
         var systemPrompt = """
             You are a helpful AI assistant that answers questions based ONLY on the provided context documents.
 
@@ -71,25 +70,75 @@ public class ChatService : IChatService
             Respond with JSON only.
             """;
 
-        // 5. Call OpenAI
-        var messages = new List<ChatMessage>
+        var chatMessages = new List<ChatMessage>
         {
             new SystemChatMessage(systemPrompt),
             new UserChatMessage(userMessage)
         };
 
-        var completion = await _chatClient.CompleteChatAsync(messages);
-        var rawResponse = completion.Value.Content[0].Text;
+        // Run chat completion and (for new sessions) name generation in parallel
+        bool isNew = sessionId == null;
+        var completionTask = _chatClient.CompleteChatAsync(chatMessages);
+        var nameTask = isNew ? GenerateSessionNameAsync(query) : Task.FromResult("New Chat");
 
-        // 6. Parse and sanitize the response
-        return ParseResponse(rawResponse, relevantChunks);
+        await Task.WhenAll(completionTask, nameTask);
+
+        var rawResponse = completionTask.Result.Value.Content[0].Text;
+        var sessionName = nameTask.Result;
+
+        var response = ParseResponse(rawResponse, relevantChunks);
+        await PersistToSessionAsync(sessionId, userId, query, response, isNew, sessionName);
+        return response;
+    }
+
+    private async Task PersistToSessionAsync(string? sessionId, string userId, string query,
+        ChatResponse response, bool isNew = false, string sessionName = "New Chat")
+    {
+        ChatSession session;
+        if (isNew)
+        {
+            session = new ChatSession { UserId = userId, Name = sessionName };
+            await _historyRepo.CreateAsync(session);
+            response.SessionId = session.Id;
+            response.SessionName = sessionName;
+            await _historyRepo.EnforceCapAsync(userId, 30);
+        }
+        else
+        {
+            session = await _historyRepo.GetAsync(sessionId!, userId)
+                ?? new ChatSession { Id = sessionId, UserId = userId, Name = "Chat" };
+            response.SessionId = session.Id;
+        }
+
+        session.Messages.Add(new SessionMessage { Role = "user", Content = query });
+        session.Messages.Add(new SessionMessage
+        {
+            Role = "assistant",
+            Content = response.Answer,
+            Sources = response.Sources
+        });
+        await _historyRepo.UpdateAsync(session);
+    }
+
+    private async Task<string> GenerateSessionNameAsync(string query)
+    {
+        try
+        {
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage("Generate a short title (2-5 words) for a conversation starting with this question. Return ONLY the title, no punctuation."),
+                new UserChatMessage(query.Length > 200 ? query[..200] : query)
+            };
+            var result = await _chatClient.CompleteChatAsync(messages);
+            return result.Value.Content[0].Text.Trim().Trim('"').Trim('.');
+        }
+        catch { return "New Chat"; }
     }
 
     private ChatResponse ParseResponse(string rawResponse, List<DocumentChunk> chunks)
     {
         try
         {
-            // Strip markdown code blocks if present
             var json = rawResponse.Trim();
             if (json.StartsWith("```json")) json = json[7..];
             else if (json.StartsWith("```")) json = json[3..];

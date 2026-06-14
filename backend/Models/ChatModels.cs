@@ -1,6 +1,6 @@
 namespace RagChatbot.API.Models;
 
-public record ChatRequest(string Query, string? AnonymousId = null);
+public record ChatRequest(string Query, string? AnonymousId = null, string? SessionId = null);
 
 public class ChatResponse
 {
@@ -9,6 +9,8 @@ public class ChatResponse
     public string? Reasoning { get; set; }
     public bool Success { get; set; } = true;
     public string? Error { get; set; }
+    public string? SessionId { get; set; }
+    public string? SessionName { get; set; }
 }
 
 public class UploadResponse
