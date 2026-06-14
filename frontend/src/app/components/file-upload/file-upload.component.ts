@@ -112,7 +112,11 @@ export class FileUploadComponent implements OnInit {
           states.map(s => s === state
             ? { ...s, progress: progress.progress, status: progress.response ? (progress.response.success ? 'done' : 'error') : 'uploading',
                 message: progress.response
-                  ? (progress.response.success ? `Done! ${progress.response.chunksCreated} chunks indexed` : progress.response.error || 'Failed')
+                  ? (progress.response.success
+                      ? (progress.response.isDuplicate
+                          ? `Already indexed${progress.response.existingFileName && progress.response.existingFileName !== progress.response.fileName ? ' as "' + progress.response.existingFileName + '"' : ''}`
+                          : `Done! ${progress.response.chunksCreated} chunks indexed`)
+                      : (progress.response.error || 'Failed'))
                   : `Uploading... ${progress.progress}%`,
                 chunksCreated: progress.response?.chunksCreated }
             : s)
@@ -152,5 +156,9 @@ export class FileUploadComponent implements OnInit {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  formatHash(hash: string): string {
+    return hash ? hash.slice(0, 8) + '…' : '';
   }
 }

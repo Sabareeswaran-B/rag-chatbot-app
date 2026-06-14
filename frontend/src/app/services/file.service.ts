@@ -7,12 +7,19 @@ export interface UploadResponse {
   fileName: string;
   chunksCreated: number;
   error?: string;
+  isDuplicate?: boolean;
+  existingFileName?: string;
 }
 
 export interface UploadedFile {
   fileName: string;
   chunkCount: number;
   uploadedAt: string;
+  contentHash: string;
+  fileSize: number;
+  fileType: string;
+  characterCount: number;
+  uploadedBy: string;
 }
 
 export interface UploadProgress {

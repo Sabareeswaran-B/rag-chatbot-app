@@ -7,6 +7,7 @@ namespace RagChatbot.API.Services;
 public class MongoDbService : IMongoDbService
 {
     private readonly IMongoCollection<DocumentChunk> _collection;
+    private readonly IMongoCollection<FileMetadata> _fileMetadata;
     private readonly bool _useAtlasVectorSearch;
 
     public MongoDbService(IConfiguration configuration)
@@ -19,24 +20,31 @@ public class MongoDbService : IMongoDbService
         var client = new MongoClient(connectionString);
         var database = client.GetDatabase(databaseName);
         _collection = database.GetCollection<DocumentChunk>("document_chunks");
+        _fileMetadata = database.GetCollection<FileMetadata>("file_metadata");
 
-        // Create text index on FileName for filtering
-        var indexKeys = Builders<DocumentChunk>.IndexKeys.Ascending(x => x.FileName);
-        _collection.Indexes.CreateOne(new CreateIndexModel<DocumentChunk>(indexKeys));
+        _collection.Indexes.CreateOne(new CreateIndexModel<DocumentChunk>(
+            Builders<DocumentChunk>.IndexKeys.Ascending(x => x.FileName)));
+        _fileMetadata.Indexes.CreateOne(new CreateIndexModel<FileMetadata>(
+            Builders<FileMetadata>.IndexKeys.Ascending(x => x.ContentHash),
+            new CreateIndexOptions { Unique = true }));
+        _fileMetadata.Indexes.CreateOne(new CreateIndexModel<FileMetadata>(
+            Builders<FileMetadata>.IndexKeys.Ascending(x => x.FileName),
+            new CreateIndexOptions { Unique = true }));
     }
 
-    public async Task SaveChunksAsync(string fileName, List<string> chunks, List<float[]> embeddings, string fileType)
+    public async Task SaveChunksAsync(string fileName, List<string> chunks, List<float[]> embeddings, string fileType, string contentHash)
     {
-        // Delete existing chunks for this file
         await _collection.DeleteManyAsync(Builders<DocumentChunk>.Filter.Eq(x => x.FileName, fileName));
 
+        var now = DateTime.UtcNow;
         var documents = chunks.Select((chunk, i) => new DocumentChunk
         {
             FileName = fileName,
             Content = chunk,
             Embedding = embeddings[i],
             ChunkIndex = i,
-            UploadedAt = DateTime.UtcNow,
+            ContentHash = contentHash,
+            UploadedAt = now,
             FileType = fileType
         }).ToList();
 
@@ -63,16 +71,12 @@ public class MongoDbService : IMongoDbService
                 { "limit", limit }
             })
         };
-
-        var results = await _collection.Aggregate<DocumentChunk>(pipeline).ToListAsync();
-        return results;
+        return await _collection.Aggregate<DocumentChunk>(pipeline).ToListAsync();
     }
 
     private async Task<List<DocumentChunk>> CosineSimFallbackAsync(float[] queryEmbedding, int limit)
     {
-        // Fetch all and compute cosine similarity in memory (suitable for small datasets)
         var all = await _collection.Find(FilterDefinition<DocumentChunk>.Empty).ToListAsync();
-
         return all
             .Select(doc => (doc, score: CosineSimilarity(queryEmbedding, doc.Embedding)))
             .OrderByDescending(x => x.score)
@@ -97,29 +101,27 @@ public class MongoDbService : IMongoDbService
 
     public async Task<List<UploadedFile>> GetUploadedFilesAsync()
     {
-        var pipeline = new[]
-        {
-            new BsonDocument("$group", new BsonDocument
-            {
-                { "_id", "$FileName" },
-                { "chunkCount", new BsonDocument("$sum", 1) },
-                { "uploadedAt", new BsonDocument("$first", "$UploadedAt") }
-            }),
-            new BsonDocument("$sort", new BsonDocument("uploadedAt", -1))
-        };
+        var metas = await _fileMetadata.Find(FilterDefinition<FileMetadata>.Empty)
+            .SortByDescending(m => m.UploadedAt)
+            .ToListAsync();
 
-        var results = await _collection.Aggregate<BsonDocument>(pipeline).ToListAsync();
-        return results.Select(r => new UploadedFile
+        return metas.Select(m => new UploadedFile
         {
-            FileName = r["_id"].AsString,
-            ChunkCount = r["chunkCount"].AsInt32,
-            UploadedAt = r["uploadedAt"].ToUniversalTime()
+            FileName = m.FileName,
+            ChunkCount = m.ChunkCount,
+            UploadedAt = m.UploadedAt,
+            ContentHash = m.ContentHash,
+            FileSize = m.FileSize,
+            FileType = m.FileType,
+            CharacterCount = m.CharacterCount,
+            UploadedBy = m.UploadedBy
         }).ToList();
     }
 
     public async Task DeleteFileChunksAsync(string fileName)
     {
         await _collection.DeleteManyAsync(Builders<DocumentChunk>.Filter.Eq(x => x.FileName, fileName));
+        await _fileMetadata.DeleteOneAsync(Builders<FileMetadata>.Filter.Eq(x => x.FileName, fileName));
     }
 
     public async Task<List<DocumentChunk>> GetChunksByFileAsync(string fileName)
@@ -127,4 +129,20 @@ public class MongoDbService : IMongoDbService
             .Find(Builders<DocumentChunk>.Filter.Eq(x => x.FileName, fileName))
             .SortBy(x => x.ChunkIndex)
             .ToListAsync();
+
+    public async Task<FileMetadata?> GetFileByHashAsync(string contentHash)
+        => await _fileMetadata.Find(Builders<FileMetadata>.Filter.Eq(x => x.ContentHash, contentHash))
+            .FirstOrDefaultAsync();
+
+    public async Task SaveFileMetadataAsync(FileMetadata metadata)
+    {
+        // Upsert by FileName so re-uploading a file name replaces its metadata
+        await _fileMetadata.ReplaceOneAsync(
+            Builders<FileMetadata>.Filter.Eq(x => x.FileName, metadata.FileName),
+            metadata,
+            new ReplaceOptions { IsUpsert = true });
+    }
+
+    public async Task DeleteFileMetadataAsync(string fileName)
+        => await _fileMetadata.DeleteOneAsync(Builders<FileMetadata>.Filter.Eq(x => x.FileName, fileName));
 }

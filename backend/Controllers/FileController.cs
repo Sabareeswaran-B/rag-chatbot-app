@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RagChatbot.API.Models;
@@ -14,9 +16,9 @@ namespace RagChatbot.API.Controllers;
 public class FileController(IFileProcessingService fileProcessingService, IEmbeddingService embeddingService, IMongoDbService mongoDbService) : ControllerBase
 {
     /// <summary>
-    /// Upload a document (PDF, DOCX, TXT, MD, CSV). Admin only.
-    /// Extracts text, splits into 1 000-character chunks with 200-character overlap,
-    /// embeds via OpenAI, and stores in MongoDB. Max 50 MB.
+    /// Upload a document. Admin only. Computes a SHA-256 content hash — if the same content is
+    /// already indexed (even under a different filename) the upload is rejected as a duplicate.
+    /// Supported: PDF (≤25 MB), TXT / MD / DOCX / CSV (≤100 MB).
     /// </summary>
     [HttpPost("upload")]
     [Authorize(Roles = "admin")]
@@ -40,6 +42,23 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
                 Error = isPdf ? "PDF files are limited to 25 MB." : "Files are limited to 100 MB."
             });
 
+        // Compute SHA-256 content hash
+        string contentHash;
+        using (var hashStream = file.OpenReadStream())
+            contentHash = Convert.ToHexString(SHA256.HashData(hashStream)).ToLowerInvariant();
+
+        // Duplicate check — same content already indexed?
+        var existing = await mongoDbService.GetFileByHashAsync(contentHash);
+        if (existing != null)
+            return Ok(new UploadResponse
+            {
+                Success = true,
+                IsDuplicate = true,
+                FileName = file.FileName,
+                ExistingFileName = existing.FileName,
+                ChunksCreated = existing.ChunkCount
+            });
+
         try
         {
             var chunks = await fileProcessingService.ExtractAndChunkAsync(file);
@@ -48,13 +67,25 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
 
             var embeddings = new List<float[]>();
             foreach (var chunk in chunks)
-            {
-                var embedding = await embeddingService.GetEmbeddingAsync(chunk);
-                embeddings.Add(embedding);
-            }
+                embeddings.Add(await embeddingService.GetEmbeddingAsync(chunk));
 
-            var fileType = Path.GetExtension(file.FileName).TrimStart('.');
-            await mongoDbService.SaveChunksAsync(file.FileName, chunks, embeddings, fileType);
+            var fileType = ext.TrimStart('.');
+            await mongoDbService.SaveChunksAsync(file.FileName, chunks, embeddings, fileType, contentHash);
+
+            var uploader = User.FindFirst("unique_name")?.Value
+                ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                ?? "unknown";
+
+            await mongoDbService.SaveFileMetadataAsync(new FileMetadata
+            {
+                FileName = file.FileName,
+                ContentHash = contentHash,
+                FileSize = file.Length,
+                FileType = fileType,
+                ChunkCount = chunks.Count,
+                CharacterCount = chunks.Sum(c => (long)c.Length),
+                UploadedBy = uploader
+            });
 
             return Ok(new UploadResponse
             {
@@ -82,10 +113,7 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
         return Ok(files);
     }
 
-    /// <summary>
-    /// Download the extracted text content of a document reconstructed from its indexed chunks.
-    /// Any authenticated user. Returns a plain-text file.
-    /// </summary>
+    /// <summary>Download extracted text content reconstructed from indexed chunks. Any authenticated user.</summary>
     [HttpGet("download/{fileName}")]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -104,7 +132,7 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
         return File(bytes, "text/plain; charset=utf-8", downloadName);
     }
 
-    /// <summary>Remove all chunks for a document from the knowledge base. Admin only.</summary>
+    /// <summary>Remove all chunks and metadata for a document. Admin only.</summary>
     [HttpDelete("{fileName}")]
     [Authorize(Roles = "admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

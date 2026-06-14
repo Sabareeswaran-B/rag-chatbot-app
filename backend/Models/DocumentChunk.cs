@@ -12,6 +12,7 @@ public class DocumentChunk
     public string Content { get; set; } = string.Empty;
     public float[] Embedding { get; set; } = Array.Empty<float>();
     public int ChunkIndex { get; set; }
+    public string ContentHash { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     public string FileType { get; set; } = string.Empty;
 }

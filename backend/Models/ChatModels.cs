@@ -19,6 +19,8 @@ public class UploadResponse
     public string FileName { get; set; } = string.Empty;
     public int ChunksCreated { get; set; }
     public string? Error { get; set; }
+    public bool IsDuplicate { get; set; }
+    public string? ExistingFileName { get; set; }   // the name of the already-indexed file with same content
 }
 
 public class UploadedFile
@@ -26,4 +28,9 @@ public class UploadedFile
     public string FileName { get; set; } = string.Empty;
     public int ChunkCount { get; set; }
     public DateTime UploadedAt { get; set; }
+    public string ContentHash { get; set; } = string.Empty;
+    public long FileSize { get; set; }
+    public string FileType { get; set; } = string.Empty;
+    public long CharacterCount { get; set; }
+    public string UploadedBy { get; set; } = string.Empty;
 }

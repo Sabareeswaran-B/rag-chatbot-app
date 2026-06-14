@@ -84,22 +84,19 @@
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.Upload(Microsoft.AspNetCore.Http.IFormFile)">
             <summary>
-            Upload a document (PDF, DOCX, TXT, MD, CSV). Admin only.
-            Extracts text, splits into 1 000-character chunks with 200-character overlap,
-            embeds via OpenAI, and stores in MongoDB. Max 50 MB.
+            Upload a document. Admin only. Computes a SHA-256 content hash — if the same content is
+            already indexed (even under a different filename) the upload is rejected as a duplicate.
+            Supported: PDF (≤25 MB), TXT / MD / DOCX / CSV (≤100 MB).
             </summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.GetFiles">
             <summary>List all documents currently indexed in the knowledge base. Any authenticated user.</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.DownloadFile(System.String)">
-            <summary>
-            Download the extracted text content of a document reconstructed from its indexed chunks.
-            Any authenticated user. Returns a plain-text file.
-            </summary>
+            <summary>Download extracted text content reconstructed from indexed chunks. Any authenticated user.</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.DeleteFile(System.String)">
-            <summary>Remove all chunks for a document from the knowledge base. Admin only.</summary>
+            <summary>Remove all chunks and metadata for a document. Admin only.</summary>
         </member>
     </members>
 </doc>

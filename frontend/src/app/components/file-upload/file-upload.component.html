@@ -124,7 +124,17 @@
               <div class="file-card-name" [title]="file.fileName">{{ file.fileName }}</div>
               <div class="file-card-meta">
                 <span class="chunk-badge">{{ file.chunkCount }} chunks</span>
+                <span class="meta-dot">·</span>
+                <span class="file-size">{{ formatSize(file.fileSize) }}</span>
+                <span class="meta-dot">·</span>
+                <span class="file-chars">{{ (file.characterCount / 1000).toFixed(1) }}K chars</span>
+              </div>
+              <div class="file-card-meta file-card-meta--secondary">
+                <span class="upload-by" [title]="file.uploadedBy">by {{ file.uploadedBy || '—' }}</span>
+                <span class="meta-dot">·</span>
                 <span class="upload-date">{{ formatDate(file.uploadedAt) }}</span>
+                <span class="meta-dot">·</span>
+                <span class="hash-badge" [title]="file.contentHash">{{ formatHash(file.contentHash) }}</span>
               </div>
             </div>
             <div class="file-card-actions">
