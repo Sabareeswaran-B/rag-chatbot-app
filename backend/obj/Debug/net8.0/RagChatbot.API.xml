@@ -105,6 +105,12 @@
             (built-in moderation API is free and always returns 0 tokens).
             </summary>
         </member>
+        <member name="M:RagChatbot.API.Services.IMultiQueryService.GenerateVariationsAsync(System.String)">
+            <summary>
+            Generates alternative phrasings of <paramref name="query"/> to broaden retrieval coverage.
+            Returns an empty list (not an error) when the call fails — callers fall back to single-query search.
+            </summary>
+        </member>
         <member name="M:RagChatbot.API.Services.IQueryRewriteService.RewriteAsync(System.String,System.Collections.Generic.List{RagChatbot.API.Models.SessionMessage})">
             <summary>
             Rewrites <paramref name="query"/> into a self-contained search query using

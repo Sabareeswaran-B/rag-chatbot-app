@@ -13,13 +13,14 @@ public class ChatService : IChatService
     private readonly IQueryRewriteService _queryRewriteService;
     private readonly IModerationService _moderationService;
     private readonly IModerationViolationRepository _violationRepo;
+    private readonly IMultiQueryService _multiQueryService;
     private readonly ChatClient _chatClient;
 
     public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService,
         IChatHistoryRepository historyRepo, IUserRepository userRepo,
         IRerankingService rerankingService, IQueryRewriteService queryRewriteService,
         IModerationService moderationService, IModerationViolationRepository violationRepo,
-        IConfiguration configuration)
+        IMultiQueryService multiQueryService, IConfiguration configuration)
     {
         _embeddingService = embeddingService;
         _mongoDbService = mongoDbService;
@@ -29,6 +30,7 @@ public class ChatService : IChatService
         _queryRewriteService = queryRewriteService;
         _moderationService = moderationService;
         _violationRepo = violationRepo;
+        _multiQueryService = multiQueryService;
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
         _chatClient = new ChatClient("gpt-4o-mini", apiKey);
     }
@@ -78,8 +80,37 @@ public class ChatService : IChatService
 
         var (searchQuery, rewriteInput, rewriteOutput) = await _queryRewriteService.RewriteAsync(query, recentHistory);
 
-        var queryEmbedding = await _embeddingService.GetEmbeddingAsync(searchQuery);
-        var candidates = await _mongoDbService.VectorSearchAsync(queryEmbedding, 20);
+        // Generate query variations and embed original in parallel
+        var variationsTask = _multiQueryService.GenerateVariationsAsync(searchQuery);
+        var primaryEmbeddingTask = _embeddingService.GetEmbeddingAsync(searchQuery);
+        await Task.WhenAll(variationsTask, primaryEmbeddingTask);
+
+        var (variations, mqInput, mqOutput) = variationsTask.Result;
+        var primaryEmbedding = primaryEmbeddingTask.Result;
+
+        // Run vector searches for original + all variations in parallel (10 candidates each)
+        var searchTasks = new List<Task<List<DocumentChunk>>>
+        {
+            _mongoDbService.VectorSearchAsync(primaryEmbedding, 10)
+        };
+        foreach (var variation in variations)
+        {
+            searchTasks.Add(Task.Run(async () =>
+            {
+                var emb = await _embeddingService.GetEmbeddingAsync(variation);
+                return await _mongoDbService.VectorSearchAsync(emb, 10);
+            }));
+        }
+        await Task.WhenAll(searchTasks);
+
+        // Deduplicate by chunk ID, preserving order (primary results first)
+        var seen = new HashSet<string>();
+        var candidates = new List<DocumentChunk>();
+        foreach (var chunk in searchTasks.SelectMany(t => t.Result))
+        {
+            if (chunk.Id != null && seen.Add(chunk.Id))
+                candidates.Add(chunk);
+        }
 
         if (candidates.Count == 0)
         {
@@ -88,9 +119,9 @@ public class ChatService : IChatService
                 Answer = "I don't have any relevant documents to answer your question. Please upload some documents first.",
                 Sources = [], Success = true
             };
-            await PersistToSessionAsync(sessionId, userId, query, noDocResponse, rewriteInput, rewriteOutput);
-            if (user != null && rewriteInput + rewriteOutput > 0)
-                await _userRepo.IncrementTokensUsedAsync(userId, rewriteInput + rewriteOutput);
+            await PersistToSessionAsync(sessionId, userId, query, noDocResponse, rewriteInput + mqInput, rewriteOutput + mqOutput);
+            if (user != null && rewriteInput + mqInput + rewriteOutput + mqOutput > 0)
+                await _userRepo.IncrementTokensUsedAsync(userId, rewriteInput + mqInput + rewriteOutput + mqOutput);
             return noDocResponse;
         }
 
@@ -157,8 +188,8 @@ public class ChatService : IChatService
         var mainOutputTokens = (int)(completionResult.Usage?.OutputTokenCount ?? 0);
         var (sessionName, nameInput, nameOutput) = nameTask.Result;
 
-        var totalInputTokens = mainInputTokens + rewriteInput + rerankInput + nameInput + modInputTokens;
-        var totalOutputTokens = mainOutputTokens + rewriteOutput + rerankOutput + nameOutput + modOutputTokens;
+        var totalInputTokens = mainInputTokens + rewriteInput + rerankInput + nameInput + modInputTokens + mqInput;
+        var totalOutputTokens = mainOutputTokens + rewriteOutput + rerankOutput + nameOutput + modOutputTokens + mqOutput;
 
         var response = ParseResponse(rawResponse, relevantChunks);
         await PersistToSessionAsync(sessionId, userId, query, response, totalInputTokens, totalOutputTokens, isNew, sessionName);

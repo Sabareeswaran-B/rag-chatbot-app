@@ -81,6 +81,7 @@ builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
 builder.Services.AddScoped<IModerationService, ModerationService>();
 builder.Services.AddScoped<IRerankingService, RerankingService>();
 builder.Services.AddScoped<IQueryRewriteService, QueryRewriteService>();
+builder.Services.AddScoped<IMultiQueryService, MultiQueryService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
