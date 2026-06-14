@@ -311,6 +311,13 @@
   }
 }
 
+.file-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .delete-btn {
   background: none;
   border: none;
@@ -324,4 +331,27 @@
   svg { width: 16px; height: 16px; }
 
   &:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+}
+
+.download-btn {
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: 1px solid #1e2130;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+
+  svg { width: 15px; height: 15px; }
+
+  &:hover {
+    background: rgba(99,102,241,0.1);
+    color: #a5b4fc;
+    border-color: rgba(99,102,241,0.3);
+  }
 }

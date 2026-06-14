@@ -4,82 +4,84 @@
     <p>Upload documents to build your knowledge base. Supported: PDF, TXT, MD, DOCX, CSV</p>
   </div>
 
-  <!-- Drop Zone -->
-  <div
-    class="drop-zone"
-    [class.drag-over]="isDragOver()"
-    (dragover)="onDragOver($event)"
-    (dragleave)="onDragLeave($event)"
-    (drop)="onDrop($event)"
-    (click)="fileInput.click()">
-    <input
-      #fileInput
-      type="file"
-      [accept]="acceptedTypes"
-      multiple
-      (change)="onFileSelect($event)"
-      style="display:none">
-    <div class="drop-zone-content">
-      <div class="upload-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
+  <!-- Drop Zone (admin only) -->
+  @if (authService.isAdmin) {
+    <div
+      class="drop-zone"
+      [class.drag-over]="isDragOver()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (click)="fileInput.click()">
+      <input
+        #fileInput
+        type="file"
+        [accept]="acceptedTypes"
+        multiple
+        (change)="onFileSelect($event)"
+        style="display:none">
+      <div class="drop-zone-content">
+        <div class="upload-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <p class="drop-text">
+          @if (isDragOver()) {
+            Drop files here
+          } @else {
+            Drag &amp; drop files or <span class="browse-link">browse</span>
+          }
+        </p>
+        <p class="drop-hint">PDF up to 25 MB · TXT, MD, DOCX, CSV up to 100 MB</p>
       </div>
-      <p class="drop-text">
-        @if (isDragOver()) {
-          Drop files here
-        } @else {
-          Drag &amp; drop files or <span class="browse-link">browse</span>
-        }
-      </p>
-      <p class="drop-hint">PDF, TXT, MD, DOCX, CSV up to 50MB</p>
     </div>
-  </div>
 
-  <!-- Active Uploads -->
-  @if (uploadStates().length > 0) {
-    <div class="uploads-section">
-      <div class="section-header">
-        <h3>Uploads</h3>
-        <button class="text-btn" (click)="clearCompleted()">Clear completed</button>
-      </div>
-      @for (state of uploadStates(); track state.file.name) {
-        <div class="upload-item" [class]="'status-' + state.status">
-          <div class="file-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-          </div>
-          <div class="upload-info">
-            <div class="upload-name">{{ state.file.name }}</div>
-            <div class="upload-status">
-              @if (state.status === 'uploading') {
-                <div class="progress-bar">
-                  <div class="progress-fill" [style.width.%]="state.progress"></div>
-                </div>
+    <!-- Active Uploads -->
+    @if (uploadStates().length > 0) {
+      <div class="uploads-section">
+        <div class="section-header">
+          <h3>Uploads</h3>
+          <button class="text-btn" (click)="clearCompleted()">Clear completed</button>
+        </div>
+        @for (state of uploadStates(); track state.file.name) {
+          <div class="upload-item" [class]="'status-' + state.status">
+            <div class="file-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div class="upload-info">
+              <div class="upload-name">{{ state.file.name }}</div>
+              <div class="upload-status">
+                @if (state.status === 'uploading') {
+                  <div class="progress-bar">
+                    <div class="progress-fill" [style.width.%]="state.progress"></div>
+                  </div>
+                }
+                <span class="status-text" [class]="'text-' + state.status">{{ state.message }}</span>
+              </div>
+            </div>
+            <div class="upload-badge" [class]="'badge-' + state.status">
+              @if (state.status === 'done') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              } @else if (state.status === 'error') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              } @else if (state.status === 'uploading') {
+                <div class="mini-spinner"></div>
               }
-              <span class="status-text" [class]="'text-' + state.status">{{ state.message }}</span>
             </div>
           </div>
-          <div class="upload-badge" [class]="'badge-' + state.status">
-            @if (state.status === 'done') {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            } @else if (state.status === 'error') {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            } @else if (state.status === 'uploading') {
-              <div class="mini-spinner"></div>
-            }
-          </div>
-        </div>
-      }
-    </div>
+        }
+      </div>
+    }
   }
 
   <!-- Indexed Documents -->
@@ -125,12 +127,23 @@
                 <span class="upload-date">{{ formatDate(file.uploadedAt) }}</span>
               </div>
             </div>
-            <button class="delete-btn" (click)="deleteFile(file.fileName)" title="Remove from knowledge base">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-              </svg>
-            </button>
+            <div class="file-card-actions">
+              <button class="download-btn" (click)="downloadFile(file.fileName)" title="Download extracted text">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </button>
+              @if (authService.isAdmin) {
+                <button class="delete-btn" (click)="deleteFile(file.fileName)" title="Remove from knowledge base">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                  </svg>
+                </button>
+              }
+            </div>
           </div>
         }
       </div>

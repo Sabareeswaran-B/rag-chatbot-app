@@ -77,24 +77,29 @@
             <summary>Clear all chat history for the current user.</summary>
         </member>
         <member name="T:RagChatbot.API.Controllers.FileController">
-            <summary>File management — upload documents, list indexed files, and remove them. Admin only.</summary>
+            <summary>File management — upload (admin only), list/download (any authenticated user), delete (admin only).</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.#ctor(RagChatbot.API.Services.IFileProcessingService,RagChatbot.API.Services.IEmbeddingService,RagChatbot.API.Services.IMongoDbService)">
-            <summary>File management — upload documents, list indexed files, and remove them. Admin only.</summary>
+            <summary>File management — upload (admin only), list/download (any authenticated user), delete (admin only).</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.Upload(Microsoft.AspNetCore.Http.IFormFile)">
             <summary>
-            Upload a document (PDF, DOCX, TXT, MD, CSV). The file is extracted, split into 1 000-character
-            chunks with 200-character overlap, embedded via OpenAI, and stored in MongoDB. Max 50 MB.
+            Upload a document (PDF, DOCX, TXT, MD, CSV). Admin only.
+            Extracts text, splits into 1 000-character chunks with 200-character overlap,
+            embeds via OpenAI, and stores in MongoDB. Max 50 MB.
             </summary>
-            <param name="file">The document file to index.</param>
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.GetFiles">
-            <summary>List all documents currently indexed in the knowledge base.</summary>
+            <summary>List all documents currently indexed in the knowledge base. Any authenticated user.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.FileController.DownloadFile(System.String)">
+            <summary>
+            Download the extracted text content of a document reconstructed from its indexed chunks.
+            Any authenticated user. Returns a plain-text file.
+            </summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.DeleteFile(System.String)">
-            <summary>Remove all chunks for a document from the knowledge base.</summary>
-            <param name="fileName">The file name as returned by the list endpoint.</param>
+            <summary>Remove all chunks for a document from the knowledge base. Admin only.</summary>
         </member>
     </members>
 </doc>

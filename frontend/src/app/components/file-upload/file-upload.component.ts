@@ -1,6 +1,7 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FileService, UploadedFile, UploadProgress } from '../../services/file.service';
+import { AuthService } from '../../services/auth.service';
 
 interface FileUploadState {
   file: File;
@@ -19,6 +20,7 @@ interface FileUploadState {
 })
 export class FileUploadComponent implements OnInit {
   private fileService = inject(FileService);
+  authService = inject(AuthService);
 
   isDragOver = signal(false);
   uploadStates = signal<FileUploadState[]>([]);
@@ -67,23 +69,37 @@ export class FileUploadComponent implements OnInit {
   }
 
   private processFiles(files: File[]) {
-    const valid = files.filter(f => this.isValidType(f));
-    if (valid.length === 0) return;
+    const validType = files.filter(f => this.isValidType(f));
+    if (validType.length === 0) return;
 
-    const newStates: FileUploadState[] = valid.map(f => ({
-      file: f,
-      progress: 0,
-      status: 'pending',
-      message: 'Queued...'
-    }));
+    const newStates: FileUploadState[] = validType.map(f => {
+      const err = this.sizeError(f);
+      return {
+        file: f,
+        progress: 0,
+        status: err ? 'error' : 'pending',
+        message: err ?? 'Queued...'
+      };
+    });
 
     this.uploadStates.update(states => [...newStates, ...states]);
-    valid.forEach((file, i) => this.uploadFile(newStates[i], file));
+    newStates.forEach((state, i) => {
+      if (state.status !== 'error') this.uploadFile(state, validType[i]);
+    });
   }
 
   private isValidType(file: File): boolean {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
     return ['.pdf', '.txt', '.md', '.docx', '.csv'].includes(ext);
+  }
+
+  private sizeError(file: File): string | null {
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    const maxBytes = ext === '.pdf' ? 25 * 1024 * 1024 : 100 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return `Exceeds ${ext === '.pdf' ? '25 MB' : '100 MB'} limit`;
+    }
+    return null;
   }
 
   private uploadFile(state: FileUploadState, file: File) {
@@ -118,6 +134,10 @@ export class FileUploadComponent implements OnInit {
       next: () => this.loadFiles(),
       error: () => {}
     });
+  }
+
+  downloadFile(fileName: string) {
+    this.fileService.downloadFile(fileName);
   }
 
   clearCompleted() {

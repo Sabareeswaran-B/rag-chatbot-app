@@ -41,7 +41,8 @@ export class App implements OnInit {
   }
 
   setTab(tab: Tab) {
-    if ((tab === 'upload' || tab === 'analytics') && !this.authService.isAdmin) return;
+    if (tab === 'analytics' && !this.authService.isAdmin) return;
+    // 'upload' tab is now accessible to all authenticated users
     this.activeTab.set(tab);
   }
 }

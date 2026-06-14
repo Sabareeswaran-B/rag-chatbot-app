@@ -52,4 +52,16 @@ export class FileService {
   deleteFile(fileName: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/file/${encodeURIComponent(fileName)}`);
   }
+
+  downloadFile(fileName: string): void {
+    const url = `${this.baseUrl}/file/download/${encodeURIComponent(fileName)}`;
+    this.http.get(url, { responseType: 'blob' }).subscribe(blob => {
+      const a = document.createElement('a');
+      const objectUrl = URL.createObjectURL(blob);
+      a.href = objectUrl;
+      a.download = fileName.replace(/\.[^.]+$/, '') + '_extracted.txt';
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    });
+  }
 }

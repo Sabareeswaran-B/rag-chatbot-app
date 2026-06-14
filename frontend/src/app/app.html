@@ -23,7 +23,7 @@
           </svg>
           Chat
         </button>
-        @if (authService.isAdmin) {
+        @if (authService.authState().isAuthenticated) {
           <button class="tab-btn" [class.active]="activeTab() === 'upload'" (click)="setTab('upload')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -31,6 +31,8 @@
             </svg>
             Files
           </button>
+        }
+        @if (authService.isAdmin) {
           <button class="tab-btn" [class.active]="activeTab() === 'analytics'" (click)="setTab('analytics')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>

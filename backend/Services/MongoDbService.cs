@@ -121,4 +121,10 @@ public class MongoDbService : IMongoDbService
     {
         await _collection.DeleteManyAsync(Builders<DocumentChunk>.Filter.Eq(x => x.FileName, fileName));
     }
+
+    public async Task<List<DocumentChunk>> GetChunksByFileAsync(string fileName)
+        => await _collection
+            .Find(Builders<DocumentChunk>.Filter.Eq(x => x.FileName, fileName))
+            .SortBy(x => x.ChunkIndex)
+            .ToListAsync();
 }

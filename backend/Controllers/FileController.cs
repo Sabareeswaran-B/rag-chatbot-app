@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RagChatbot.API.Models;
@@ -5,29 +6,39 @@ using RagChatbot.API.Services;
 
 namespace RagChatbot.API.Controllers;
 
-/// <summary>File management — upload documents, list indexed files, and remove them. Admin only.</summary>
+/// <summary>File management — upload (admin only), list/download (any authenticated user), delete (admin only).</summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "admin")]
+[Authorize]
 [Produces("application/json")]
 public class FileController(IFileProcessingService fileProcessingService, IEmbeddingService embeddingService, IMongoDbService mongoDbService) : ControllerBase
 {
-
     /// <summary>
-    /// Upload a document (PDF, DOCX, TXT, MD, CSV). The file is extracted, split into 1 000-character
-    /// chunks with 200-character overlap, embedded via OpenAI, and stored in MongoDB. Max 50 MB.
+    /// Upload a document (PDF, DOCX, TXT, MD, CSV). Admin only.
+    /// Extracts text, splits into 1 000-character chunks with 200-character overlap,
+    /// embeds via OpenAI, and stores in MongoDB. Max 50 MB.
     /// </summary>
-    /// <param name="file">The document file to index.</param>
     [HttpPost("upload")]
-    [RequestSizeLimit(50 * 1024 * 1024)]
+    [Authorize(Roles = "admin")]
+    [RequestSizeLimit(100 * 1024 * 1024)]
     [ProducesResponseType(typeof(UploadResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(UploadResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(UploadResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(UploadResponse), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<UploadResponse>> Upload(IFormFile file)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new UploadResponse { Success = false, Error = "No file provided." });
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var isPdf = ext == ".pdf";
+        var maxBytes = isPdf ? 25 * 1024 * 1024 : 100 * 1024 * 1024;
+        if (file.Length > maxBytes)
+            return BadRequest(new UploadResponse
+            {
+                Success = false,
+                Error = isPdf ? "PDF files are limited to 25 MB." : "Files are limited to 100 MB."
+            });
 
         try
         {
@@ -62,21 +73,42 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
         }
     }
 
-    /// <summary>List all documents currently indexed in the knowledge base.</summary>
+    /// <summary>List all documents currently indexed in the knowledge base. Any authenticated user.</summary>
     [HttpGet("list")]
     [ProducesResponseType(typeof(List<UploadedFile>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<List<UploadedFile>>> GetFiles()
     {
         var files = await mongoDbService.GetUploadedFilesAsync();
         return Ok(files);
     }
 
-    /// <summary>Remove all chunks for a document from the knowledge base.</summary>
-    /// <param name="fileName">The file name as returned by the list endpoint.</param>
+    /// <summary>
+    /// Download the extracted text content of a document reconstructed from its indexed chunks.
+    /// Any authenticated user. Returns a plain-text file.
+    /// </summary>
+    [HttpGet("download/{fileName}")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadFile(string fileName)
+    {
+        var decoded = Uri.UnescapeDataString(fileName);
+        var chunks = await mongoDbService.GetChunksByFileAsync(decoded);
+        if (chunks.Count == 0) return NotFound(new { error = "File not found in knowledge base." });
+
+        var content = new StringBuilder();
+        foreach (var chunk in chunks)
+            content.AppendLine(chunk.Content);
+
+        var bytes = Encoding.UTF8.GetBytes(content.ToString());
+        var downloadName = Path.GetFileNameWithoutExtension(decoded) + "_extracted.txt";
+        return File(bytes, "text/plain; charset=utf-8", downloadName);
+    }
+
+    /// <summary>Remove all chunks for a document from the knowledge base. Admin only.</summary>
     [HttpDelete("{fileName}")]
+    [Authorize(Roles = "admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> DeleteFile(string fileName)
     {
         await mongoDbService.DeleteFileChunksAsync(Uri.UnescapeDataString(fileName));
