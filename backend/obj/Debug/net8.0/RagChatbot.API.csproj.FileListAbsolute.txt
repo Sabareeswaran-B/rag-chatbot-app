@@ -63,3 +63,5 @@
 /Users/sabareeswaranb/rag-chatbot-app/backend/bin/Debug/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
 /Users/sabareeswaranb/rag-chatbot-app/backend/bin/Debug/net8.0/Microsoft.IdentityModel.Tokens.dll
 /Users/sabareeswaranb/rag-chatbot-app/backend/bin/Debug/net8.0/System.IdentityModel.Tokens.Jwt.dll
+/Users/sabareeswaranb/rag-chatbot-app/backend/bin/Debug/net8.0/RagChatbot.API.xml
+/Users/sabareeswaranb/rag-chatbot-app/backend/obj/Debug/net8.0/RagChatbot.API.xml
