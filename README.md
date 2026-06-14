@@ -2,6 +2,7 @@
 
 A production-grade Retrieval-Augmented Generation (RAG) chatbot built on **ASP.NET Core 10** and **Angular 21**. Documents are chunked, embedded, and stored in MongoDB; at query time, multi-query fan-out, cosine similarity retrieval, LLM-based reranking, and parallel moderation combine to deliver grounded, citation-backed answers.
 
+ Link: https://ragbot-web.azurewebsites.net
 ---
 
 ## Table of Contents
