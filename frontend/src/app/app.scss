@@ -5,6 +5,25 @@
   flex-direction: column;
 }
 
+.app-loading {
+  min-height: 100vh;
+  background: #080a0f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-ring {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #1e2130;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .app-header {
   display: flex;
   align-items: center;
@@ -16,7 +35,6 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(10px);
 }
 
 .logo {
@@ -33,7 +51,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-
   svg { width: 18px; height: 18px; color: white; }
 }
 
@@ -41,8 +58,6 @@
   font-size: 18px;
   font-weight: 700;
   color: #e2e8f0;
-  letter-spacing: -0.5px;
-
   .accent { color: #6366f1; }
 }
 
@@ -68,16 +83,80 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-
+  font-family: inherit;
   svg { width: 15px; height: 15px; }
-
   &:hover { color: #94a3b8; }
-
   &.active {
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
     color: white;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 2px 8px rgba(99,102,241,0.3);
   }
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.username {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.role-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  &.admin {
+    background: rgba(99,102,241,0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.3);
+  }
+}
+
+.logout-btn {
+  background: none;
+  border: 1px solid #1e2130;
+  border-radius: 8px;
+  padding: 7px;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  transition: all 0.2s;
+  svg { width: 16px; height: 16px; }
+  &:hover { background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.3); }
+}
+
+.anon-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  svg { width: 14px; height: 14px; }
+}
+
+.login-btn {
+  background: none;
+  border: 1px solid #6366f1;
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: #a5b4fc;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  &:hover { background: rgba(99,102,241,0.1); }
 }
 
 .app-main {

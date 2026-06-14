@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using RagChatbot.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,9 +10,24 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "RAG Chatbot API", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new()
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header
+    });
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {{
+        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+        {
+            Reference = new() { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "Bearer" }
+        },
+        Array.Empty<string>()
+    }});
 });
 
-// CORS for Angular dev server
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
@@ -18,11 +36,34 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader());
 });
 
-// Register services
+var jwtSecret = builder.Configuration["Jwt:Secret"]
+    ?? throw new InvalidOperationException("Jwt:Secret not configured. Run: dotnet user-secrets set \"Jwt:Secret\" \"<32+ char secret>\"");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
 builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
+builder.Services.AddSingleton<IUserRepository, UserRepository>();
+builder.Services.AddSingleton<IJwtService, JwtService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 var app = builder.Build();
 
@@ -34,6 +75,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowAngular");
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

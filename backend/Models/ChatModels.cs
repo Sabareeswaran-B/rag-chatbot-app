@@ -1,6 +1,6 @@
 namespace RagChatbot.API.Models;
 
-public record ChatRequest(string Query);
+public record ChatRequest(string Query, string? AnonymousId = null);
 
 public class ChatResponse
 {

@@ -1,42 +1,72 @@
-<div class="app-shell">
-  <header class="app-header">
-    <div class="logo">
-      <div class="logo-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          <path d="M11 8v3l2 2"/>
-        </svg>
+@if (!isInitialized()) {
+  <div class="app-loading">
+    <div class="loading-ring"></div>
+  </div>
+} @else if (showLogin()) {
+  <app-login (loginSuccess)="onLoginSuccess()" (skipLogin)="onSkipLogin()" />
+} @else {
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+        <span class="logo-text">RAG<span class="accent">Chat</span></span>
       </div>
-      <span class="logo-text">RAG<span class="accent">Chat</span></span>
-    </div>
-    <nav class="tab-nav">
-      <button
-        class="tab-btn"
-        [class.active]="activeTab() === 'chat'"
-        (click)="setTab('chat')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-        Chat
-      </button>
-      <button
-        class="tab-btn"
-        [class.active]="activeTab() === 'upload'"
-        (click)="setTab('upload')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        Files
-      </button>
-    </nav>
-  </header>
 
-  <main class="app-main">
-    @if (activeTab() === 'chat') {
-      <app-chat />
-    } @else {
-      <app-file-upload />
-    }
-  </main>
-</div>
+      <nav class="tab-nav">
+        <button class="tab-btn" [class.active]="activeTab() === 'chat'" (click)="setTab('chat')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Chat
+        </button>
+        @if (authService.isAdmin) {
+          <button class="tab-btn" [class.active]="activeTab() === 'upload'" (click)="setTab('upload')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Files
+          </button>
+        }
+      </nav>
+
+      <div class="header-right">
+        @if (authService.authState().isAuthenticated) {
+          <div class="user-info">
+            <span class="username">{{ authService.authState().username }}</span>
+            @if (authService.isAdmin) {
+              <span class="role-badge admin">Admin</span>
+            }
+          </div>
+          <button class="logout-btn" (click)="onLogout()" title="Sign out">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
+        } @else {
+          <div class="anon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            Anonymous
+          </div>
+          <button class="login-btn" (click)="showLogin.set(true)">Sign in</button>
+        }
+      </div>
+    </header>
+
+    <main class="app-main">
+      @if (activeTab() === 'chat') {
+        <app-chat />
+      } @else {
+        <app-file-upload />
+      }
+    </main>
+  </div>
+}

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RagChatbot.API.Models;
 using RagChatbot.API.Services;
@@ -20,7 +21,8 @@ public class FileController : ControllerBase
     }
 
     [HttpPost("upload")]
-    [RequestSizeLimit(50 * 1024 * 1024)] // 50MB limit
+    [Authorize(Roles = "admin")]
+    [RequestSizeLimit(50 * 1024 * 1024)]
     public async Task<ActionResult<UploadResponse>> Upload(IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -28,12 +30,10 @@ public class FileController : ControllerBase
 
         try
         {
-            // Extract text and chunk
             var chunks = await _fileProcessingService.ExtractAndChunkAsync(file);
             if (chunks.Count == 0)
                 return BadRequest(new UploadResponse { Success = false, Error = "Could not extract text from file." });
 
-            // Embed all chunks (sequential to avoid rate limits)
             var embeddings = new List<float[]>();
             foreach (var chunk in chunks)
             {
@@ -41,7 +41,6 @@ public class FileController : ControllerBase
                 embeddings.Add(embedding);
             }
 
-            // Save to MongoDB
             var fileType = Path.GetExtension(file.FileName).TrimStart('.');
             await _mongoDbService.SaveChunksAsync(file.FileName, chunks, embeddings, fileType);
 
@@ -63,6 +62,7 @@ public class FileController : ControllerBase
     }
 
     [HttpGet("list")]
+    [Authorize(Roles = "admin")]
     public async Task<ActionResult<List<UploadedFile>>> GetFiles()
     {
         var files = await _mongoDbService.GetUploadedFilesAsync();
@@ -70,6 +70,7 @@ public class FileController : ControllerBase
     }
 
     [HttpDelete("{fileName}")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> DeleteFile(string fileName)
     {
         await _mongoDbService.DeleteFileChunksAsync(Uri.UnescapeDataString(fileName));
