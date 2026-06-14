@@ -16,10 +16,10 @@ public class RerankingService : IRerankingService
         _client = new ChatClient("gpt-4o-mini", apiKey);
     }
 
-    public async Task<List<DocumentChunk>> RerankAsync(string query, List<DocumentChunk> chunks, int topK = 5)
+    public async Task<(List<DocumentChunk> Chunks, int InputTokens, int OutputTokens)> RerankAsync(string query, List<DocumentChunk> chunks, int topK = 5)
     {
         if (chunks.Count <= topK)
-            return chunks;
+            return (chunks, 0, 0);
 
         var passages = string.Join("\n\n", chunks.Select((c, i) =>
         {
@@ -49,22 +49,28 @@ public class RerankingService : IRerankingService
                 [new UserChatMessage(prompt)],
                 options);
 
+            var inputTokens = (int)(result.Value.Usage?.InputTokenCount ?? 0);
+            var outputTokens = (int)(result.Value.Usage?.OutputTokenCount ?? 0);
+
             var json = result.Value.Content[0].Text;
             var reranked = JsonSerializer.Deserialize<RerankResult>(json,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (reranked?.RankedIndices is { Count: > 0 })
             {
-                return reranked.RankedIndices
+                var ranked = reranked.RankedIndices
                     .Where(i => i >= 0 && i < chunks.Count)
                     .Take(topK)
                     .Select(i => chunks[i])
                     .ToList();
+                return (ranked, inputTokens, outputTokens);
             }
+
+            return (chunks.Take(topK).ToList(), inputTokens, outputTokens);
         }
         catch { /* fall through to default */ }
 
-        return chunks.Take(topK).ToList();
+        return (chunks.Take(topK).ToList(), 0, 0);
     }
 
     private class RerankResult

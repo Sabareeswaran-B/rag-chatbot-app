@@ -98,5 +98,18 @@
         <member name="M:RagChatbot.API.Controllers.FileController.DeleteFile(System.String)">
             <summary>Remove all chunks and metadata for a document. Admin only.</summary>
         </member>
+        <member name="M:RagChatbot.API.Services.IQueryRewriteService.RewriteAsync(System.String,System.Collections.Generic.List{RagChatbot.API.Models.SessionMessage})">
+            <summary>
+            Rewrites <paramref name="query"/> into a self-contained search query using
+            <paramref name="history"/>. Returns the original query unchanged when history is empty.
+            Also returns the input/output token counts consumed by the rewrite call (0 when skipped).
+            </summary>
+        </member>
+        <member name="M:RagChatbot.API.Services.IRerankingService.RerankAsync(System.String,System.Collections.Generic.List{RagChatbot.API.Models.DocumentChunk},System.Int32)">
+            <summary>
+            Reranks <paramref name="chunks"/> by relevance to <paramref name="query"/> and returns the top K.
+            Also returns the input/output token counts consumed by the rerank call (0 on fallback).
+            </summary>
+        </member>
     </members>
 </doc>

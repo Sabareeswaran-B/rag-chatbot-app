@@ -10,17 +10,20 @@ public class ChatService : IChatService
     private readonly IChatHistoryRepository _historyRepo;
     private readonly IUserRepository _userRepo;
     private readonly IRerankingService _rerankingService;
+    private readonly IQueryRewriteService _queryRewriteService;
     private readonly ChatClient _chatClient;
 
     public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService,
         IChatHistoryRepository historyRepo, IUserRepository userRepo,
-        IRerankingService rerankingService, IConfiguration configuration)
+        IRerankingService rerankingService, IQueryRewriteService queryRewriteService,
+        IConfiguration configuration)
     {
         _embeddingService = embeddingService;
         _mongoDbService = mongoDbService;
         _historyRepo = historyRepo;
         _userRepo = userRepo;
         _rerankingService = rerankingService;
+        _queryRewriteService = queryRewriteService;
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
         _chatClient = new ChatClient("gpt-4o-mini", apiKey);
     }
@@ -38,9 +41,18 @@ public class ChatService : IChatService
             };
         }
 
-        var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query);
+        // Load recent history to rewrite follow-up queries into self-contained search queries
+        List<SessionMessage> recentHistory = [];
+        if (sessionId != null)
+        {
+            var existingSession = await _historyRepo.GetAsync(sessionId, userId);
+            recentHistory = existingSession?.Messages.TakeLast(6).ToList() ?? [];
+        }
+
+        var (searchQuery, rewriteInput, rewriteOutput) = await _queryRewriteService.RewriteAsync(query, recentHistory);
+
+        var queryEmbedding = await _embeddingService.GetEmbeddingAsync(searchQuery);
         var candidates = await _mongoDbService.VectorSearchAsync(queryEmbedding, 20);
-        var relevantChunks = await _rerankingService.RerankAsync(query, candidates, topK: 5);
 
         if (candidates.Count == 0)
         {
@@ -49,9 +61,13 @@ public class ChatService : IChatService
                 Answer = "I don't have any relevant documents to answer your question. Please upload some documents first.",
                 Sources = [], Success = true
             };
-            await PersistToSessionAsync(sessionId, userId, query, noDocResponse, 0, 0);
+            await PersistToSessionAsync(sessionId, userId, query, noDocResponse, rewriteInput, rewriteOutput);
+            if (user != null && rewriteInput + rewriteOutput > 0)
+                await _userRepo.IncrementTokensUsedAsync(userId, rewriteInput + rewriteOutput);
             return noDocResponse;
         }
+
+        var (relevantChunks, rerankInput, rerankOutput) = await _rerankingService.RerankAsync(searchQuery, candidates, topK: 5);
 
         var contextBuilder = new System.Text.StringBuilder();
         for (int i = 0; i < relevantChunks.Count; i++)
@@ -88,30 +104,40 @@ public class ChatService : IChatService
             Respond with JSON only.
             """;
 
-        var chatMessages = new List<ChatMessage>
+        var chatMessages = new List<ChatMessage> { new SystemChatMessage(systemPrompt) };
+
+        foreach (var msg in recentHistory)
         {
-            new SystemChatMessage(systemPrompt),
-            new UserChatMessage(userMessage)
-        };
+            if (msg.Role == "user")
+                chatMessages.Add(new UserChatMessage(msg.Content));
+            else
+                chatMessages.Add(new AssistantChatMessage(msg.Content));
+        }
+
+        chatMessages.Add(new UserChatMessage(userMessage));
 
         bool isNew = sessionId == null;
         var completionTask = _chatClient.CompleteChatAsync(chatMessages);
-        var nameTask = isNew ? GenerateSessionNameAsync(query) : Task.FromResult("New Chat");
+        var nameTask = isNew
+            ? GenerateSessionNameAsync(query)
+            : Task.FromResult(("New Chat", 0, 0));
 
         await Task.WhenAll(completionTask, nameTask);
 
         var completionResult = completionTask.Result.Value;
         var rawResponse = completionResult.Content[0].Text;
-        var inputTokens = (int)(completionResult.Usage?.InputTokenCount ?? 0);
-        var outputTokens = (int)(completionResult.Usage?.OutputTokenCount ?? 0);
-        var sessionName = nameTask.Result;
+        var mainInputTokens = (int)(completionResult.Usage?.InputTokenCount ?? 0);
+        var mainOutputTokens = (int)(completionResult.Usage?.OutputTokenCount ?? 0);
+        var (sessionName, nameInput, nameOutput) = nameTask.Result;
+
+        var totalInputTokens = mainInputTokens + rewriteInput + rerankInput + nameInput;
+        var totalOutputTokens = mainOutputTokens + rewriteOutput + rerankOutput + nameOutput;
 
         var response = ParseResponse(rawResponse, relevantChunks);
-        await PersistToSessionAsync(sessionId, userId, query, response, inputTokens, outputTokens, isNew, sessionName);
+        await PersistToSessionAsync(sessionId, userId, query, response, totalInputTokens, totalOutputTokens, isNew, sessionName);
 
-        // Increment user token usage for registered users
-        if (user != null && inputTokens + outputTokens > 0)
-            await _userRepo.IncrementTokensUsedAsync(userId, inputTokens + outputTokens);
+        if (user != null && totalInputTokens + totalOutputTokens > 0)
+            await _userRepo.IncrementTokensUsedAsync(userId, totalInputTokens + totalOutputTokens);
 
         return response;
     }
@@ -148,7 +174,7 @@ public class ChatService : IChatService
         await _historyRepo.UpdateAsync(session);
     }
 
-    private async Task<string> GenerateSessionNameAsync(string query)
+    private async Task<(string Name, int InputTokens, int OutputTokens)> GenerateSessionNameAsync(string query)
     {
         try
         {
@@ -158,9 +184,12 @@ public class ChatService : IChatService
                 new UserChatMessage(query.Length > 200 ? query[..200] : query)
             };
             var result = await _chatClient.CompleteChatAsync(messages);
-            return result.Value.Content[0].Text.Trim().Trim('"').Trim('.');
+            var name = result.Value.Content[0].Text.Trim().Trim('"').Trim('.');
+            var inputTokens = (int)(result.Value.Usage?.InputTokenCount ?? 0);
+            var outputTokens = (int)(result.Value.Usage?.OutputTokenCount ?? 0);
+            return (name, inputTokens, outputTokens);
         }
-        catch { return "New Chat"; }
+        catch { return ("New Chat", 0, 0); }
     }
 
     private ChatResponse ParseResponse(string rawResponse, List<DocumentChunk> chunks)

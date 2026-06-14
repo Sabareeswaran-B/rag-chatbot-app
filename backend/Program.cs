@@ -78,6 +78,7 @@ builder.Services.AddSingleton<IChatHistoryRepository, ChatHistoryRepository>();
 builder.Services.AddSingleton<IJwtService, JwtService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
 builder.Services.AddScoped<IRerankingService, RerankingService>();
+builder.Services.AddScoped<IQueryRewriteService, QueryRewriteService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
