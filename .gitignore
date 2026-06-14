@@ -1,0 +1,104 @@
+# ─── .NET / ASP.NET Core ────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.rsuser
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+*.publishsettings
+project.lock.json
+project.fragment.lock.json
+artifacts/
+**/Properties/launchSettings.json
+
+# .NET User Secrets (never commit — use dotnet user-secrets)
+**/secrets.json
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!**/packages/repositories.config
+*.nuspec
+
+# Publish output
+publish/
+*_i.c
+*_p.c
+*_h.h
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.pdb
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp_proj
+*_wpftmp.csproj
+*.vspscc
+*.vssscc
+.builds
+
+# ─── Angular / Node ──────────────────────────────────────────────────────────
+node_modules/
+dist/
+.angular/
+.sass-cache/
+connect.lock
+coverage/
+libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+typings/
+e2e/*.js
+e2e/*.map
+.DS_Store
+Thumbs.db
+
+# ─── Environment & secrets ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.env
+
+# ─── IDEs ────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ─── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ─── Windows ─────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
