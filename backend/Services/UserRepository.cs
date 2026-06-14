@@ -67,4 +67,12 @@ public class UserRepository : IUserRepository
         => await _tokens.UpdateManyAsync(
             t => t.UserId == userId && t.TokenType == tokenType && !t.IsRevoked,
             Builders<StoredToken>.Update.Set(t => t.IsRevoked, true));
+
+    public async Task IncrementTokensUsedAsync(string userId, long amount)
+        => await _users.UpdateOneAsync(u => u.Id == userId,
+            Builders<User>.Update.Inc(u => u.TokensUsed, amount));
+
+    public async Task AddToTokenLimitAsync(string userId, long amount)
+        => await _users.UpdateOneAsync(u => u.Id == userId,
+            Builders<User>.Update.Inc(u => u.TokenLimit, amount));
 }

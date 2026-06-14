@@ -22,6 +22,10 @@ export interface UserUsageStats {
   sessionCount: number;
   messageCount: number;
   lastActivity: string | null;
+  tokenLimit: number;
+  tokensUsed: number;
+  isExpired: boolean;
+  usagePercentage: number;
 }
 
 export interface SessionMessageItem {
@@ -57,5 +61,12 @@ export class AnalyticsService {
 
   getAnalytics(): Observable<AnalyticsResponse> {
     return this.http.get<AnalyticsResponse>(this.baseUrl);
+  }
+
+  addTokens(userId: string, amount: number): Observable<{ message: string; newLimit: number; tokensUsed: number }> {
+    return this.http.patch<{ message: string; newLimit: number; tokensUsed: number }>(
+      `${this.baseUrl}/users/${userId}/tokens`,
+      { amount }
+    );
   }
 }

@@ -10,4 +10,5 @@ public interface IAuthService
     Task<bool> LogoutAsync(string refreshToken);
     Task<AuthResponse> SetupAdminAsync(RegisterRequest request);
     Task<bool> HasAdminAsync();
+    Task<AuthResponse> RegisterAsync(RegisterRequest request);
 }

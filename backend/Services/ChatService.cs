@@ -8,20 +8,33 @@ public class ChatService : IChatService
     private readonly IEmbeddingService _embeddingService;
     private readonly IMongoDbService _mongoDbService;
     private readonly IChatHistoryRepository _historyRepo;
+    private readonly IUserRepository _userRepo;
     private readonly ChatClient _chatClient;
 
     public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService,
-        IChatHistoryRepository historyRepo, IConfiguration configuration)
+        IChatHistoryRepository historyRepo, IUserRepository userRepo, IConfiguration configuration)
     {
         _embeddingService = embeddingService;
         _mongoDbService = mongoDbService;
         _historyRepo = historyRepo;
+        _userRepo = userRepo;
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
         _chatClient = new ChatClient("gpt-4o-mini", apiKey);
     }
 
     public async Task<ChatResponse> GetAnswerAsync(string query, string? sessionId, string userId)
     {
+        // Check token limit for registered users
+        var user = await _userRepo.GetByIdAsync(userId);
+        if (user != null && user.TokenLimit > 0 && user.TokensUsed >= user.TokenLimit)
+        {
+            return new ChatResponse
+            {
+                Answer = "Your token limit has been exhausted. Please contact an administrator to add more tokens.",
+                Sources = [], Success = false, Error = "TOKEN_LIMIT_EXCEEDED"
+            };
+        }
+
         var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query);
         var relevantChunks = await _mongoDbService.VectorSearchAsync(queryEmbedding, 5);
 
@@ -90,6 +103,11 @@ public class ChatService : IChatService
 
         var response = ParseResponse(rawResponse, relevantChunks);
         await PersistToSessionAsync(sessionId, userId, query, response, inputTokens, outputTokens, isNew, sessionName);
+
+        // Increment user token usage for registered users
+        if (user != null && inputTokens + outputTokens > 0)
+            await _userRepo.IncrementTokensUsedAsync(userId, inputTokens + outputTokens);
+
         return response;
     }
 

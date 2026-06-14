@@ -13,6 +13,7 @@
       <p>{{ error() }}</p>
     </div>
   } @else if (data()) {
+
     <div class="page-header">
       <h1>Analytics</h1>
       <p class="page-sub">Token usage and cost breakdown · GPT-4o mini</p>
@@ -38,7 +39,7 @@
       <div class="card">
         <span class="card-label">Users</span>
         <span class="card-value">{{ data()!.summary.totalUsers }}</span>
-        <span class="card-sub">{{ data()!.summary.totalSessions }} sessions</span>
+        <span class="card-sub">{{ data()!.summary.totalSessions }} sessions · {{ data()!.summary.totalMessages }} messages</span>
       </div>
     </div>
 
@@ -50,34 +51,85 @@
           <thead>
             <tr>
               <th>User</th>
+              <th>Token Quota</th>
               <th class="num">Sessions</th>
-              <th class="num">Messages</th>
-              <th class="num">Input Tokens</th>
-              <th class="num">Output Tokens</th>
+              <th class="num">Input Tok</th>
+              <th class="num">Output Tok</th>
               <th class="num">Cost</th>
               <th>Last Active</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             @for (user of data()!.userStats; track user.userId) {
-              <tr [class.zero-row]="user.sessionCount === 0">
+              <tr [class.zero-row]="user.sessionCount === 0" [class.expired-row]="user.isExpired">
                 <td>
                   <div class="user-cell">
-                    <div class="user-dot" [class.dot-admin]="user.isAdmin" [class.dot-anon]="user.isAnonymous"></div>
+                    <div class="user-dot" [class.dot-admin]="user.isAdmin" [class.dot-anon]="user.isAnonymous" [class.dot-expired]="user.isExpired"></div>
                     <span class="user-name">{{ user.username }}</span>
                     @if (user.isAdmin) { <span class="badge-tag admin">Admin</span> }
                     @if (user.isAnonymous) { <span class="badge-tag anon">Anon</span> }
+                    @if (user.isExpired) { <span class="badge-tag expired">Credits Expired</span> }
                   </div>
                   <div class="cost-bar-track">
                     <div class="cost-bar-fill" [style.width]="costBarWidth(user.totalCost, maxUserCost())"></div>
                   </div>
                 </td>
+
+                <!-- Token Quota Column -->
+                <td class="quota-cell">
+                  @if (user.isAnonymous) {
+                    <span class="quota-na">—</span>
+                  } @else if (user.tokenLimit === 0) {
+                    <span class="quota-unlimited">Unlimited</span>
+                  } @else {
+                    <div class="quota-bar-wrap">
+                      <div class="quota-bar-track" [class.quota-full]="user.isExpired">
+                        <div class="quota-bar-fill"
+                          [style.width]="user.usagePercentage + '%'"
+                          [class.bar-danger]="user.isExpired"
+                          [class.bar-warning]="!user.isExpired && user.usagePercentage >= 80">
+                        </div>
+                      </div>
+                      <span class="quota-label" [class.quota-expired-label]="user.isExpired">
+                        {{ formatTokens(user.tokensUsed) }} / {{ formatTokens(user.tokenLimit) }}
+                      </span>
+                    </div>
+
+                    <!-- Inline add-tokens form -->
+                    @if (isAddTokensOpen(user.userId)) {
+                      <div class="add-tokens-form">
+                        <input type="number" class="tokens-input"
+                          [ngModel]="getAddTokenInput(user.userId)"
+                          (ngModelChange)="setAddTokenInput(user.userId, $event)"
+                          placeholder="e.g. 500000"
+                          min="1" (keydown.enter)="submitAddTokens(user)">
+                        <button class="confirm-btn" (click)="submitAddTokens(user)"
+                          [disabled]="isAdding(user.userId) || !getAddTokenInput(user.userId)">
+                          @if (isAdding(user.userId)) { <span class="mini-spin"></span> }
+                          @else { Add }
+                        </button>
+                        <button class="cancel-btn" (click)="toggleAddTokens(user.userId)">✕</button>
+                      </div>
+                    }
+                  }
+                </td>
+
                 <td class="num">{{ user.sessionCount }}</td>
-                <td class="num">{{ user.messageCount }}</td>
                 <td class="num">{{ formatTokens(user.totalInputTokens) }}</td>
                 <td class="num">{{ formatTokens(user.totalOutputTokens) }}</td>
                 <td class="num cost-cell">{{ formatCost(user.totalCost) }}</td>
                 <td class="date-cell">{{ formatDate(user.lastActivity) }}</td>
+                <td class="actions-cell">
+                  @if (!user.isAnonymous && !user.isAdmin) {
+                    <button class="add-tokens-btn" [class.open]="isAddTokensOpen(user.userId)"
+                      (click)="toggleAddTokens(user.userId)" title="Add tokens">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                    </button>
+                  }
+                </td>
               </tr>
             }
           </tbody>

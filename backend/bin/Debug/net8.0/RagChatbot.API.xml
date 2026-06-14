@@ -5,16 +5,20 @@
     </assembly>
     <members>
         <member name="T:RagChatbot.API.Controllers.AnalyticsController">
-            <summary>Analytics — admin-only token usage and cost statistics per user and session.</summary>
+            <summary>Analytics — admin-only token usage, cost statistics, and token management.</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.AnalyticsController.#ctor(RagChatbot.API.Services.IChatHistoryRepository,RagChatbot.API.Services.IUserRepository)">
-            <summary>Analytics — admin-only token usage and cost statistics per user and session.</summary>
+            <summary>Analytics — admin-only token usage, cost statistics, and token management.</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.AnalyticsController.GetAnalytics">
             <summary>
             Returns aggregated token usage and cost for all users (including zero-usage registered users),
             ordered by most recent activity, plus the top 5 most expensive sessions with full message history.
+            Token limit status is included for each registered user.
             </summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.AnalyticsController.AddTokens(System.String,RagChatbot.API.Models.AddTokensRequest)">
+            <summary>Add tokens to a registered user's token limit. Amount must be positive.</summary>
         </member>
         <member name="T:RagChatbot.API.Controllers.AuthController">
             <summary>Authentication — login, token refresh, remember-me, and first-run admin setup.</summary>
@@ -25,6 +29,9 @@
         </member>
         <member name="M:RagChatbot.API.Controllers.AuthController.Setup(RagChatbot.API.Models.RegisterRequest)">
             <summary>Create the first admin account. Fails if any user already exists.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.AuthController.Register(RagChatbot.API.Models.RegisterRequest)">
+            <summary>Register a new non-admin user account. Returns JWT tokens immediately on success.</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.AuthController.Login(RagChatbot.API.Models.LoginRequest)">
             <summary>Login with username and password. Set <c>rememberMe</c> to receive a 30-day cookie token.</summary>

@@ -13,4 +13,6 @@ public interface IUserRepository
     Task<StoredToken?> GetTokenAsync(string tokenHash, string tokenType);
     Task RevokeTokenAsync(string tokenHash);
     Task RevokeAllUserTokensAsync(string userId, string tokenType);
+    Task IncrementTokensUsedAsync(string userId, long amount);
+    Task AddToTokenLimitAsync(string userId, long amount);
 }

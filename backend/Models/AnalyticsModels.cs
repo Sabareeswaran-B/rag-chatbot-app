@@ -22,6 +22,10 @@ public class UserUsageStats
     public int SessionCount { get; set; }
     public int MessageCount { get; set; }
     public DateTime? LastActivity { get; set; }
+    public long TokenLimit { get; set; }        // 0 = unlimited
+    public long TokensUsed { get; set; }        // from User document (authoritative)
+    public bool IsExpired { get; set; }         // TokenLimit > 0 && TokensUsed >= TokenLimit
+    public double UsagePercentage { get; set; } // 0–100
 }
 
 public class SessionMessageDto
@@ -51,4 +55,9 @@ public class AnalyticsResponse
     public AnalyticsSummary Summary { get; set; } = new();
     public List<UserUsageStats> UserStats { get; set; } = new();
     public List<TopSessionStats> TopSessions { get; set; } = new();
+}
+
+public class AddTokensRequest
+{
+    public long Amount { get; set; }
 }

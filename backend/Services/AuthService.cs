@@ -78,6 +78,23 @@ public class AuthService : IAuthService
 
     public async Task<bool> HasAdminAsync() => await _userRepo.CountAsync() > 0;
 
+    public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
+    {
+        var existing = await _userRepo.GetByUsernameAsync(request.Username);
+        if (existing != null)
+            return new AuthResponse { Success = false, Error = "Username already taken." };
+
+        var user = new User
+        {
+            Username = request.Username,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            Role = "user",
+            TokenLimit = 500_000
+        };
+        await _userRepo.CreateAsync(user);
+        return await BuildAuthResponseAsync(user, false);
+    }
+
     private async Task<AuthResponse> BuildAuthResponseAsync(User user, bool rememberMe)
     {
         var accessToken = _jwtService.GenerateAccessToken(user);

@@ -11,6 +11,8 @@ public class User
     public string Username { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = "user";
+    public long TokenLimit { get; set; }   // 0 = unlimited (admin)
+    public long TokensUsed { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
 }

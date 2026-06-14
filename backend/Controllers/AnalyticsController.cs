@@ -5,7 +5,7 @@ using RagChatbot.API.Services;
 
 namespace RagChatbot.API.Controllers;
 
-/// <summary>Analytics — admin-only token usage and cost statistics per user and session.</summary>
+/// <summary>Analytics — admin-only token usage, cost statistics, and token management.</summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "admin")]
@@ -21,6 +21,7 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
     /// <summary>
     /// Returns aggregated token usage and cost for all users (including zero-usage registered users),
     /// ordered by most recent activity, plus the top 5 most expensive sessions with full message history.
+    /// Token limit status is included for each registered user.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(AnalyticsResponse), StatusCodes.Status200OK)]
@@ -35,10 +36,10 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
 
         var userStats = new List<UserUsageStats>();
 
-        // All registered users (includes 0-usage)
         foreach (var user in allUsers)
         {
             var sessions = sessionsByUser.GetValueOrDefault(user.Id!, []);
+            var isExpired = user.TokenLimit > 0 && user.TokensUsed >= user.TokenLimit;
             userStats.Add(new UserUsageStats
             {
                 UserId = user.Id!,
@@ -50,11 +51,14 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
                 TotalCost = CalculateCost(sessions.Sum(s => s.TotalInputTokens), sessions.Sum(s => s.TotalOutputTokens)),
                 SessionCount = sessions.Count,
                 MessageCount = sessions.Sum(s => s.Messages.Count),
-                LastActivity = sessions.Any() ? sessions.Max(s => s.UpdatedAt) : null
+                LastActivity = sessions.Any() ? sessions.Max(s => s.UpdatedAt) : null,
+                TokenLimit = user.TokenLimit,
+                TokensUsed = user.TokensUsed,
+                IsExpired = isExpired,
+                UsagePercentage = user.TokenLimit > 0 ? Math.Min(100, (user.TokensUsed / (double)user.TokenLimit) * 100) : 0
             });
         }
 
-        // Anonymous users — any userId not in the registered users set
         var registeredIds = new HashSet<string>(allUsers.Where(u => u.Id != null).Select(u => u.Id!));
         foreach (var kvp in sessionsByUser.Where(kvp => !registeredIds.Contains(kvp.Key)))
         {
@@ -70,18 +74,16 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
                 TotalCost = CalculateCost(sessions.Sum(s => s.TotalInputTokens), sessions.Sum(s => s.TotalOutputTokens)),
                 SessionCount = sessions.Count,
                 MessageCount = sessions.Sum(s => s.Messages.Count),
-                LastActivity = sessions.Max(s => s.UpdatedAt)
+                LastActivity = sessions.Max(s => s.UpdatedAt),
+                TokenLimit = 0, TokensUsed = 0, IsExpired = false, UsagePercentage = 0
             });
         }
 
-        // Sort by most recent activity, users with activity first
         userStats = userStats
             .OrderByDescending(u => u.LastActivity ?? DateTime.MinValue)
             .ToList();
 
-        var userDict = allUsers
-            .Where(u => u.Id != null)
-            .ToDictionary(u => u.Id!, u => u.Username);
+        var userDict = allUsers.Where(u => u.Id != null).ToDictionary(u => u.Id!, u => u.Username);
 
         var topSessions = allSessions
             .OrderByDescending(s => CalculateCost(s.TotalInputTokens, s.TotalOutputTokens))
@@ -99,10 +101,8 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
                 UpdatedAt = s.UpdatedAt,
                 Messages = s.Messages.Select(m => new SessionMessageDto
                 {
-                    Role = m.Role,
-                    Content = m.Content,
-                    Sources = m.Sources,
-                    Timestamp = m.Timestamp
+                    Role = m.Role, Content = m.Content,
+                    Sources = m.Sources, Timestamp = m.Timestamp
                 }).ToList()
             }).ToList();
 
@@ -122,6 +122,28 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
             },
             UserStats = userStats,
             TopSessions = topSessions
+        });
+    }
+
+    /// <summary>Add tokens to a registered user's token limit. Amount must be positive.</summary>
+    [HttpPatch("users/{userId}/tokens")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddTokens(string userId, [FromBody] AddTokensRequest request)
+    {
+        if (request.Amount <= 0)
+            return BadRequest(new { error = "Amount must be a positive number." });
+
+        var user = await userRepo.GetByIdAsync(userId);
+        if (user == null) return NotFound(new { error = "User not found." });
+
+        await userRepo.AddToTokenLimitAsync(userId, request.Amount);
+        return Ok(new
+        {
+            message = $"Added {request.Amount:N0} tokens to {user.Username}.",
+            newLimit = user.TokenLimit + request.Amount,
+            tokensUsed = user.TokensUsed
         });
     }
 }

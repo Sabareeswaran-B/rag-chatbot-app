@@ -1,11 +1,12 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AnalyticsService, AnalyticsResponse, TopSessionStats } from '../../services/analytics.service';
+import { FormsModule } from '@angular/forms';
+import { AnalyticsService, AnalyticsResponse, TopSessionStats, UserUsageStats } from '../../services/analytics.service';
 
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './analytics.component.html',
   styleUrl: './analytics.component.scss'
 })
@@ -17,7 +18,19 @@ export class AnalyticsComponent implements OnInit {
   error = signal<string | null>(null);
   expandedSessions = signal<Set<string>>(new Set());
 
+  // Per-user add-tokens input values: userId -> amount string
+  addTokenInputs = signal<Record<string, string>>({});
+  // Which users have the add-tokens form open
+  addTokensOpen = signal<Set<string>>(new Set());
+  // Which users are currently submitting
+  addingTokens = signal<Set<string>>(new Set());
+
   ngOnInit() {
+    this.load();
+  }
+
+  load() {
+    this.isLoading.set(true);
     this.analyticsService.getAnalytics().subscribe({
       next: res => { this.data.set(res); this.isLoading.set(false); },
       error: err => {
@@ -37,6 +50,72 @@ export class AnalyticsComponent implements OnInit {
 
   isExpanded(sessionId: string): boolean {
     return this.expandedSessions().has(sessionId);
+  }
+
+  toggleAddTokens(userId: string) {
+    this.addTokensOpen.update(set => {
+      const next = new Set(set);
+      if (next.has(userId)) {
+        next.delete(userId);
+        this.addTokenInputs.update(m => { const n = {...m}; delete n[userId]; return n; });
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  }
+
+  isAddTokensOpen(userId: string): boolean {
+    return this.addTokensOpen().has(userId);
+  }
+
+  setAddTokenInput(userId: string, value: string) {
+    this.addTokenInputs.update(m => ({ ...m, [userId]: value }));
+  }
+
+  getAddTokenInput(userId: string): string {
+    return this.addTokenInputs()[userId] ?? '';
+  }
+
+  submitAddTokens(user: UserUsageStats) {
+    const raw = this.getAddTokenInput(user.userId).replace(/,/g, '').trim();
+    const amount = parseInt(raw, 10);
+    if (!amount || amount <= 0) return;
+
+    this.addingTokens.update(s => new Set([...s, user.userId]));
+    this.analyticsService.addTokens(user.userId, amount).subscribe({
+      next: result => {
+        // Update the local data optimistically
+        this.data.update(d => {
+          if (!d) return d;
+          return {
+            ...d,
+            userStats: d.userStats.map(u =>
+              u.userId === user.userId
+                ? {
+                    ...u,
+                    tokenLimit: result.newLimit,
+                    tokensUsed: result.tokensUsed,
+                    isExpired: result.newLimit > 0 && result.tokensUsed >= result.newLimit,
+                    usagePercentage: result.newLimit > 0
+                      ? Math.min(100, (result.tokensUsed / result.newLimit) * 100)
+                      : 0
+                  }
+                : u
+            )
+          };
+        });
+        this.addingTokens.update(s => { const n = new Set(s); n.delete(user.userId); return n; });
+        this.toggleAddTokens(user.userId);
+      },
+      error: () => {
+        this.addingTokens.update(s => { const n = new Set(s); n.delete(user.userId); return n; });
+      }
+    });
+  }
+
+  isAdding(userId: string): boolean {
+    return this.addingTokens().has(userId);
   }
 
   formatTokens(n: number): string {
@@ -67,13 +146,6 @@ export class AnalyticsComponent implements OnInit {
     return Math.max(2, Math.round((cost / maxCost) * 100)) + '%';
   }
 
-  maxUserCost = computed(() => {
-    const stats = this.data()?.userStats ?? [];
-    return Math.max(...stats.map(u => u.totalCost), 0);
-  });
-
-  maxSessionCost = computed(() => {
-    const sessions = this.data()?.topSessions ?? [];
-    return Math.max(...sessions.map(s => s.cost), 0);
-  });
+  maxUserCost = computed(() => Math.max(...(this.data()?.userStats ?? []).map(u => u.totalCost), 0));
+  maxSessionCost = computed(() => Math.max(...(this.data()?.topSessions ?? []).map(s => s.cost), 0));
 }

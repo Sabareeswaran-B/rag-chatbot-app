@@ -36,6 +36,17 @@ public class AuthController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>Register a new non-admin user account. Returns JWT tokens immediately on success.</summary>
+    [HttpPost("register")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
+    {
+        var result = await _authService.RegisterAsync(request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
     /// <summary>Login with username and password. Set <c>rememberMe</c> to receive a 30-day cookie token.</summary>
     [HttpPost("login")]
     [AllowAnonymous]
