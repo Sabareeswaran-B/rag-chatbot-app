@@ -26,6 +26,7 @@ public class UserUsageStats
     public long TokensUsed { get; set; }        // from User document (authoritative)
     public bool IsExpired { get; set; }         // TokenLimit > 0 && TokensUsed >= TokenLimit
     public double UsagePercentage { get; set; } // 0–100
+    public bool IsBlocked { get; set; }
 }
 
 public class SessionMessageDto
@@ -50,14 +51,37 @@ public class TopSessionStats
     public List<SessionMessageDto> Messages { get; set; } = new();
 }
 
+public class ViolationRecord
+{
+    public string Id { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public bool IsAnonymous { get; set; }
+    public string Query { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public bool IsBlocked { get; set; }
+}
+
+public class RiskProfile
+{
+    public int TotalViolations { get; set; }
+    public int UniqueOffenders { get; set; }
+    public int BlockedUsers { get; set; }
+    public List<ViolationRecord> Violations { get; set; } = new();
+}
+
 public class AnalyticsResponse
 {
     public AnalyticsSummary Summary { get; set; } = new();
     public List<UserUsageStats> UserStats { get; set; } = new();
     public List<TopSessionStats> TopSessions { get; set; } = new();
+    public RiskProfile RiskProfile { get; set; } = new();
 }
 
 public class AddTokensRequest
 {
     public long Amount { get; set; }
 }
+
+public class BlockUserRequest { public bool Blocked { get; set; } }

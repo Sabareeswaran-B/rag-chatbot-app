@@ -29,6 +29,7 @@ export class AuthService {
   private _refreshToken: string | null = null;
 
   authState = signal<AuthState>({ isAuthenticated: false, isAnonymous: false });
+  blockMessage = signal<string | null>(null);
 
   private readonly REFRESH_KEY = 'rag_refresh_token';
   private readonly REMEMBER_COOKIE = 'rag_remember_me';
@@ -84,6 +85,11 @@ export class AuthService {
       this.http.post(`${this.baseUrl}/logout`, { refreshToken: this._refreshToken })
         .pipe(catchError(() => of(null))).subscribe();
     }
+    this.clearAuth();
+  }
+
+  logoutBlocked(message: string): void {
+    this.blockMessage.set(message);
     this.clearAuth();
   }
 

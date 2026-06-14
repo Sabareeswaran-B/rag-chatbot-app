@@ -75,4 +75,8 @@ public class UserRepository : IUserRepository
     public async Task AddToTokenLimitAsync(string userId, long amount)
         => await _users.UpdateOneAsync(u => u.Id == userId,
             Builders<User>.Update.Inc(u => u.TokenLimit, amount));
+
+    public async Task SetBlockedAsync(string userId, bool blocked)
+        => await _users.UpdateOneAsync(u => u.Id == userId,
+            Builders<User>.Update.Set(u => u.IsBlocked, blocked));
 }

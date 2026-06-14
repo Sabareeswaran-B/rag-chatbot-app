@@ -15,4 +15,5 @@ public interface IUserRepository
     Task RevokeAllUserTokensAsync(string userId, string tokenType);
     Task IncrementTokensUsedAsync(string userId, long amount);
     Task AddToTokenLimitAsync(string userId, long amount);
+    Task SetBlockedAsync(string userId, bool blocked);
 }

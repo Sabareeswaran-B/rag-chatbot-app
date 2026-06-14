@@ -26,6 +26,25 @@ export interface UserUsageStats {
   tokensUsed: number;
   isExpired: boolean;
   usagePercentage: number;
+  isBlocked: boolean;
+}
+
+export interface ViolationRecord {
+  id: string;
+  userId: string;
+  username: string;
+  isAnonymous: boolean;
+  query: string;
+  category: string;
+  createdAt: string;
+  isBlocked: boolean;
+}
+
+export interface RiskProfile {
+  totalViolations: number;
+  uniqueOffenders: number;
+  blockedUsers: number;
+  violations: ViolationRecord[];
 }
 
 export interface SessionMessageItem {
@@ -52,6 +71,7 @@ export interface AnalyticsResponse {
   summary: AnalyticsSummary;
   userStats: UserUsageStats[];
   topSessions: TopSessionStats[];
+  riskProfile: RiskProfile;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -67,6 +87,13 @@ export class AnalyticsService {
     return this.http.patch<{ message: string; newLimit: number; tokensUsed: number }>(
       `${this.baseUrl}/users/${userId}/tokens`,
       { amount }
+    );
+  }
+
+  blockUser(userId: string, blocked: boolean): Observable<{ message: string; blocked: boolean }> {
+    return this.http.patch<{ message: string; blocked: boolean }>(
+      `${this.baseUrl}/users/${userId}/block`,
+      { blocked }
     );
   }
 }

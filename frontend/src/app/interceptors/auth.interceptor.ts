@@ -17,6 +17,10 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
 
   return next(authReq).pipe(
     catchError((err: HttpErrorResponse) => {
+      if (err.status === 403 && err.error?.error === 'USER_BLOCKED') {
+        auth.logoutBlocked(err.error?.message ?? 'Your account has been blocked.');
+        return throwError(() => err);
+      }
       if (err.status === 401) {
         const refreshToken = auth.getRefreshToken();
         if (refreshToken) {

@@ -11,11 +11,14 @@ public class ChatService : IChatService
     private readonly IUserRepository _userRepo;
     private readonly IRerankingService _rerankingService;
     private readonly IQueryRewriteService _queryRewriteService;
+    private readonly IModerationService _moderationService;
+    private readonly IModerationViolationRepository _violationRepo;
     private readonly ChatClient _chatClient;
 
     public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService,
         IChatHistoryRepository historyRepo, IUserRepository userRepo,
         IRerankingService rerankingService, IQueryRewriteService queryRewriteService,
+        IModerationService moderationService, IModerationViolationRepository violationRepo,
         IConfiguration configuration)
     {
         _embeddingService = embeddingService;
@@ -24,6 +27,8 @@ public class ChatService : IChatService
         _userRepo = userRepo;
         _rerankingService = rerankingService;
         _queryRewriteService = queryRewriteService;
+        _moderationService = moderationService;
+        _violationRepo = violationRepo;
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
         _chatClient = new ChatClient("gpt-4o-mini", apiKey);
     }
@@ -38,6 +43,28 @@ public class ChatService : IChatService
             {
                 Answer = "Your token limit has been exhausted. Please contact an administrator to add more tokens.",
                 Sources = [], Success = false, Error = "TOKEN_LIMIT_EXCEEDED"
+            };
+        }
+
+        // Moderation check — runs built-in API + LLM check in parallel
+        var (moderation, modInputTokens, modOutputTokens) = await _moderationService.CheckAsync(query);
+        if (moderation.IsFlagged)
+        {
+            var username = user?.Username ?? $"anon-{userId[..Math.Min(8, userId.Length)]}";
+            await _violationRepo.SaveAsync(new ModerationViolation
+            {
+                UserId = userId,
+                Username = username,
+                IsAnonymous = user == null,
+                Query = query,
+                Category = moderation.Category ?? "Policy Violation"
+            });
+            if (user != null && modInputTokens + modOutputTokens > 0)
+                await _userRepo.IncrementTokensUsedAsync(userId, modInputTokens + modOutputTokens);
+            return new ChatResponse
+            {
+                Answer = $"Your message was flagged for {moderation.Category}. Please ensure your queries comply with our usage policy.",
+                Sources = [], Success = false, Error = "CONTENT_MODERATED"
             };
         }
 
@@ -130,8 +157,8 @@ public class ChatService : IChatService
         var mainOutputTokens = (int)(completionResult.Usage?.OutputTokenCount ?? 0);
         var (sessionName, nameInput, nameOutput) = nameTask.Result;
 
-        var totalInputTokens = mainInputTokens + rewriteInput + rerankInput + nameInput;
-        var totalOutputTokens = mainOutputTokens + rewriteOutput + rerankOutput + nameOutput;
+        var totalInputTokens = mainInputTokens + rewriteInput + rerankInput + nameInput + modInputTokens;
+        var totalOutputTokens = mainOutputTokens + rewriteOutput + rerankOutput + nameOutput + modOutputTokens;
 
         var response = ParseResponse(rawResponse, relevantChunks);
         await PersistToSessionAsync(sessionId, userId, query, response, totalInputTokens, totalOutputTokens, isNew, sessionName);

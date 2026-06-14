@@ -7,7 +7,7 @@
         <member name="T:RagChatbot.API.Controllers.AnalyticsController">
             <summary>Analytics — admin-only token usage, cost statistics, and token management.</summary>
         </member>
-        <member name="M:RagChatbot.API.Controllers.AnalyticsController.#ctor(RagChatbot.API.Services.IChatHistoryRepository,RagChatbot.API.Services.IUserRepository)">
+        <member name="M:RagChatbot.API.Controllers.AnalyticsController.#ctor(RagChatbot.API.Services.IChatHistoryRepository,RagChatbot.API.Services.IUserRepository,RagChatbot.API.Services.IModerationViolationRepository)">
             <summary>Analytics — admin-only token usage, cost statistics, and token management.</summary>
         </member>
         <member name="M:RagChatbot.API.Controllers.AnalyticsController.GetAnalytics">
@@ -97,6 +97,13 @@
         </member>
         <member name="M:RagChatbot.API.Controllers.FileController.DeleteFile(System.String)">
             <summary>Remove all chunks and metadata for a document. Admin only.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Services.IModerationService.CheckAsync(System.String)">
+            <summary>
+            Checks query against all moderation categories.
+            Returns the result plus token counts consumed by the LLM-based check
+            (built-in moderation API is free and always returns 0 tokens).
+            </summary>
         </member>
         <member name="M:RagChatbot.API.Services.IQueryRewriteService.RewriteAsync(System.String,System.Collections.Generic.List{RagChatbot.API.Models.SessionMessage})">
             <summary>

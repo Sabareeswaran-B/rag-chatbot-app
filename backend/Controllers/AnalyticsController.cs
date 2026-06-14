@@ -10,7 +10,7 @@ namespace RagChatbot.API.Controllers;
 [Route("api/[controller]")]
 [Authorize(Roles = "admin")]
 [Produces("application/json")]
-public class AnalyticsController(IChatHistoryRepository historyRepo, IUserRepository userRepo) : ControllerBase
+public class AnalyticsController(IChatHistoryRepository historyRepo, IUserRepository userRepo, IModerationViolationRepository violationRepo) : ControllerBase
 {
     private static decimal CalculateCost(long inputTokens, long outputTokens)
         => (inputTokens * 0.00000015m) + (outputTokens * 0.00000060m);
@@ -55,7 +55,8 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
                 TokenLimit = user.TokenLimit,
                 TokensUsed = user.TokensUsed,
                 IsExpired = isExpired,
-                UsagePercentage = user.TokenLimit > 0 ? Math.Min(100, (user.TokensUsed / (double)user.TokenLimit) * 100) : 0
+                UsagePercentage = user.TokenLimit > 0 ? Math.Min(100, (user.TokensUsed / (double)user.TokenLimit) * 100) : 0,
+                IsBlocked = user.IsBlocked
             });
         }
 
@@ -82,6 +83,27 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
         userStats = userStats
             .OrderByDescending(u => u.LastActivity ?? DateTime.MinValue)
             .ToList();
+
+        var allViolations = await violationRepo.GetAllAsync();
+        var blockedUserIds = new HashSet<string>(allUsers.Where(u => u.IsBlocked).Select(u => u.Id!));
+
+        var riskProfile = new RiskProfile
+        {
+            TotalViolations = allViolations.Count,
+            UniqueOffenders = allViolations.Select(v => v.UserId).Distinct().Count(),
+            BlockedUsers = blockedUserIds.Count,
+            Violations = allViolations.Select(v => new ViolationRecord
+            {
+                Id = v.Id!,
+                UserId = v.UserId,
+                Username = v.Username,
+                IsAnonymous = v.IsAnonymous,
+                Query = v.Query,
+                Category = v.Category,
+                CreatedAt = v.CreatedAt,
+                IsBlocked = blockedUserIds.Contains(v.UserId)
+            }).ToList()
+        };
 
         var userDict = allUsers.Where(u => u.Id != null).ToDictionary(u => u.Id!, u => u.Username);
 
@@ -121,7 +143,8 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
                 TotalMessages = allSessions.Sum(s => s.Messages.Count)
             },
             UserStats = userStats,
-            TopSessions = topSessions
+            TopSessions = topSessions,
+            RiskProfile = riskProfile
         });
     }
 
@@ -145,5 +168,16 @@ public class AnalyticsController(IChatHistoryRepository historyRepo, IUserReposi
             newLimit = user.TokenLimit + request.Amount,
             tokensUsed = user.TokensUsed
         });
+    }
+
+    [HttpPatch("users/{userId}/block")]
+    public async Task<IActionResult> SetBlocked(string userId, [FromBody] BlockUserRequest request)
+    {
+        var user = await userRepo.GetByIdAsync(userId);
+        if (user == null) return NotFound(new { error = "User not found." });
+        if (user.Role == "admin") return BadRequest(new { error = "Cannot block an admin user." });
+
+        await userRepo.SetBlockedAsync(userId, request.Blocked);
+        return Ok(new { message = request.Blocked ? $"{user.Username} has been blocked." : $"{user.Username} has been unblocked.", blocked = request.Blocked });
     }
 }

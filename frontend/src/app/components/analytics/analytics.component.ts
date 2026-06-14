@@ -24,6 +24,8 @@ export class AnalyticsComponent implements OnInit {
   addTokensOpen = signal<Set<string>>(new Set());
   // Which users are currently submitting
   addingTokens = signal<Set<string>>(new Set());
+  // Which users are currently being blocked/unblocked
+  blockingUsers = signal<Set<string>>(new Set());
 
   ngOnInit() {
     this.load();
@@ -148,4 +150,54 @@ export class AnalyticsComponent implements OnInit {
 
   maxUserCost = computed(() => Math.max(...(this.data()?.userStats ?? []).map(u => u.totalCost), 0));
   maxSessionCost = computed(() => Math.max(...(this.data()?.topSessions ?? []).map(s => s.cost), 0));
+
+  blockUser(user: UserUsageStats, blocked: boolean) {
+    this.blockingUsers.update(s => new Set([...s, user.userId]));
+    this.analyticsService.blockUser(user.userId, blocked).subscribe({
+      next: result => {
+        this.data.update(d => {
+          if (!d) return d;
+          const updatedStats = d.userStats.map(u =>
+            u.userId === user.userId ? { ...u, isBlocked: result.blocked } : u
+          );
+          const updatedViolations = d.riskProfile.violations.map(v =>
+            v.userId === user.userId ? { ...v, isBlocked: result.blocked } : v
+          );
+          return {
+            ...d,
+            userStats: updatedStats,
+            riskProfile: {
+              ...d.riskProfile,
+              violations: updatedViolations,
+              blockedUsers: updatedStats.filter(u => u.isBlocked).length
+            }
+          };
+        });
+        this.blockingUsers.update(s => { const n = new Set(s); n.delete(user.userId); return n; });
+      },
+      error: () => this.blockingUsers.update(s => { const n = new Set(s); n.delete(user.userId); return n; })
+    });
+  }
+
+  blockUserById(userId: string, blocked: boolean) {
+    const user = this.data()?.userStats.find(u => u.userId === userId);
+    if (user) this.blockUser(user, blocked);
+  }
+
+  isBlocking(userId: string): boolean {
+    return this.blockingUsers().has(userId);
+  }
+
+  categoryColor(category: string): string {
+    const map: Record<string, string> = {
+      'Violence': '#ef4444',
+      'Hate': '#f97316',
+      'Sexual Content': '#ec4899',
+      'Self Harm': '#8b5cf6',
+      'Harassment': '#f59e0b',
+      'Prompt Injection': '#06b6d4',
+      'Illegal Activities': '#ef4444',
+    };
+    return map[category] ?? '#94a3b8';
+  }
 }
