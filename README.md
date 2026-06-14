@@ -1,6 +1,6 @@
 # RAG Chatbot
 
-A production-grade Retrieval-Augmented Generation (RAG) chatbot built on **ASP.NET Core 8** and **Angular 21**. Documents are chunked, embedded, and stored in MongoDB; at query time, multi-query fan-out, cosine similarity retrieval, LLM-based reranking, and parallel moderation combine to deliver grounded, citation-backed answers.
+A production-grade Retrieval-Augmented Generation (RAG) chatbot built on **ASP.NET Core 10** and **Angular 21**. Documents are chunked, embedded, and stored in MongoDB; at query time, multi-query fan-out, cosine similarity retrieval, LLM-based reranking, and parallel moderation combine to deliver grounded, citation-backed answers.
 
 ---
 
@@ -67,7 +67,7 @@ A production-grade Retrieval-Augmented Generation (RAG) chatbot built on **ASP.N
 
 | Layer | Technology |
 |---|---|
-| Backend Framework | ASP.NET Core 8 (.NET 8) |
+| Backend Framework | ASP.NET Core 10 (.NET 10) |
 | Frontend Framework | Angular 21.2 (standalone, zoneless) |
 | Database | MongoDB (Atlas or self-hosted) |
 | Vector Search | MongoDB Atlas Vector Search / in-memory cosine similarity |
@@ -487,7 +487,7 @@ If `UseAtlasVectorSearch = true`, create the following index on the `document_ch
 
 ### Prerequisites
 
-- .NET 8 SDK
+- .NET 10 SDK
 - Node.js 20+ and npm
 - MongoDB (local or Atlas)
 - OpenAI API key
