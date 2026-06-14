@@ -63,15 +63,16 @@ public class ChatService : IChatService
             Rules:
             - Answer based solely on the provided context. Do not use prior knowledge.
             - If the context doesn't contain enough information, say so clearly.
-            - Always cite which source(s) you used in your answer.
+            - Cite sources inline in your answer using bracketed numbers: [1], [2], etc.
             - Be concise, accurate, and well-structured.
             - Format your response as valid JSON matching this exact structure:
               {
-                "answer": "Your detailed answer here",
+                "answer": "Your answer with inline citations like [1] and [2].",
                 "reasoning": "Brief explanation of how you derived the answer from the sources",
                 "sources": ["filename1.pdf", "filename2.txt"]
               }
-            - Only include filenames in sources that you actually referenced.
+            - The sources array must be ordered to match citation numbers: sources[0] = [1], sources[1] = [2], etc.
+            - Only include a filename in sources if you cited it inline. No unused sources.
             """;
 
         var userMessage = $"""

@@ -109,10 +109,13 @@
                 }
               </div>
               @if (msg.sources && msg.sources.length > 0 && !msg.isTyping) {
-                <div class="sources">
-                  <span class="sources-label">Sources:</span>
-                  @for (source of msg.sources; track source) {
-                    <span class="source-chip">{{ source }}</span>
+                <div class="citations">
+                  <span class="citations-label">References</span>
+                  @for (source of msg.sources; track source; let i = $index) {
+                    <div class="citation-item">
+                      <span class="citation-num">[{{ i + 1 }}]</span>
+                      <span class="citation-file">{{ source }}</span>
+                    </div>
                   }
                 </div>
               }
