@@ -9,15 +9,18 @@ public class ChatService : IChatService
     private readonly IMongoDbService _mongoDbService;
     private readonly IChatHistoryRepository _historyRepo;
     private readonly IUserRepository _userRepo;
+    private readonly IRerankingService _rerankingService;
     private readonly ChatClient _chatClient;
 
     public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService,
-        IChatHistoryRepository historyRepo, IUserRepository userRepo, IConfiguration configuration)
+        IChatHistoryRepository historyRepo, IUserRepository userRepo,
+        IRerankingService rerankingService, IConfiguration configuration)
     {
         _embeddingService = embeddingService;
         _mongoDbService = mongoDbService;
         _historyRepo = historyRepo;
         _userRepo = userRepo;
+        _rerankingService = rerankingService;
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
         _chatClient = new ChatClient("gpt-4o-mini", apiKey);
     }
@@ -36,9 +39,10 @@ public class ChatService : IChatService
         }
 
         var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query);
-        var relevantChunks = await _mongoDbService.VectorSearchAsync(queryEmbedding, 5);
+        var candidates = await _mongoDbService.VectorSearchAsync(queryEmbedding, 20);
+        var relevantChunks = await _rerankingService.RerankAsync(query, candidates, topK: 5);
 
-        if (relevantChunks.Count == 0)
+        if (candidates.Count == 0)
         {
             var noDocResponse = new ChatResponse
             {
