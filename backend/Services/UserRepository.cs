@@ -32,7 +32,10 @@ public class UserRepository : IUserRepository
         => await _users.Find(u => u.Username == username).FirstOrDefaultAsync();
 
     public async Task<User?> GetByIdAsync(string id)
-        => await _users.Find(u => u.Id == id).FirstOrDefaultAsync();
+    {
+        if (!MongoDB.Bson.ObjectId.TryParse(id, out _)) return null;
+        return await _users.Find(u => u.Id == id).FirstOrDefaultAsync();
+    }
 
     public async Task<User> CreateAsync(User user)
     {

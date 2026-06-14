@@ -9,13 +9,17 @@ public class MongoDbService : IMongoDbService
     private readonly IMongoCollection<DocumentChunk> _collection;
     private readonly IMongoCollection<FileMetadata> _fileMetadata;
     private readonly bool _useAtlasVectorSearch;
+    private readonly ILogger<MongoDbService> _logger;
 
-    public MongoDbService(IConfiguration configuration)
+    public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
     {
+        _logger = logger;
         var connectionString = configuration["MongoDB:ConnectionString"]
             ?? throw new InvalidOperationException("MongoDB:ConnectionString not configured");
         var databaseName = configuration["MongoDB:DatabaseName"] ?? "ragchatbot";
         _useAtlasVectorSearch = bool.TryParse(configuration["MongoDB:UseAtlasVectorSearch"], out var val) && val;
+
+        _logger.LogInformation("MongoDbService init — db={Db} atlasVectorSearch={Atlas}", databaseName, _useAtlasVectorSearch);
 
         var client = new MongoClient(connectionString);
         var database = client.GetDatabase(databaseName);
@@ -34,7 +38,8 @@ public class MongoDbService : IMongoDbService
 
     public async Task SaveChunksAsync(string fileName, List<string> chunks, List<float[]> embeddings, string fileType, string contentHash)
     {
-        await _collection.DeleteManyAsync(Builders<DocumentChunk>.Filter.Eq(x => x.FileName, fileName));
+        var deleted = await _collection.DeleteManyAsync(Builders<DocumentChunk>.Filter.Eq(x => x.FileName, fileName));
+        _logger.LogInformation("SaveChunks: deleted {Deleted} existing chunks for {FileName}", deleted.DeletedCount, fileName);
 
         var now = DateTime.UtcNow;
         var documents = chunks.Select((chunk, i) => new DocumentChunk
@@ -48,7 +53,14 @@ public class MongoDbService : IMongoDbService
             FileType = fileType
         }).ToList();
 
+        // Validate embeddings before insert
+        var emptyEmbeddings = documents.Count(d => d.Embedding == null || d.Embedding.Length == 0);
+        if (emptyEmbeddings > 0)
+            _logger.LogWarning("SaveChunks: {Empty}/{Total} chunks have empty embeddings for {FileName}", emptyEmbeddings, documents.Count, fileName);
+
         await _collection.InsertManyAsync(documents);
+        _logger.LogInformation("SaveChunks: inserted {Count} chunks for {FileName} (embedding dim={Dim})",
+            documents.Count, fileName, documents.FirstOrDefault()?.Embedding?.Length ?? 0);
     }
 
     public async Task<List<DocumentChunk>> VectorSearchAsync(float[] queryEmbedding, int limit = 5)
@@ -56,6 +68,33 @@ public class MongoDbService : IMongoDbService
         if (_useAtlasVectorSearch)
             return await AtlasVectorSearchAsync(queryEmbedding, limit);
         return await CosineSimFallbackAsync(queryEmbedding, limit);
+    }
+
+    // Overload that accepts a pre-loaded chunk list — avoids redundant MongoDB round-trips
+    // when called multiple times in the same multi-query fan-out.
+    public List<DocumentChunk> VectorSearchInMemory(float[] queryEmbedding, List<DocumentChunk> allChunks, int limit = 5)
+    {
+        return allChunks
+            .Select(doc => (doc, score: CosineSimilarity(queryEmbedding, doc.Embedding)))
+            .OrderByDescending(x => x.score)
+            .Take(limit)
+            .Select(x => x.doc)
+            .ToList();
+    }
+
+    public async Task<List<DocumentChunk>> GetAllChunksAsync()
+    {
+        var all = await _collection.Find(FilterDefinition<DocumentChunk>.Empty).ToListAsync();
+        _logger.LogInformation("GetAllChunks: {Count} total chunks in collection", all.Count);
+
+        if (all.Count > 0)
+        {
+            var withEmbedding = all.Count(d => d.Embedding != null && d.Embedding.Length > 0);
+            _logger.LogInformation("GetAllChunks: {WithEmbedding}/{Total} chunks have embeddings (dim={Dim})",
+                withEmbedding, all.Count, all.FirstOrDefault(d => d.Embedding?.Length > 0)?.Embedding?.Length ?? 0);
+        }
+
+        return all;
     }
 
     private async Task<List<DocumentChunk>> AtlasVectorSearchAsync(float[] queryEmbedding, int limit)
@@ -71,23 +110,31 @@ public class MongoDbService : IMongoDbService
                 { "limit", limit }
             })
         };
-        return await _collection.Aggregate<DocumentChunk>(pipeline).ToListAsync();
+        var results = await _collection.Aggregate<DocumentChunk>(pipeline).ToListAsync();
+        _logger.LogInformation("AtlasVectorSearch: returned {Count} results", results.Count);
+        return results;
     }
 
     private async Task<List<DocumentChunk>> CosineSimFallbackAsync(float[] queryEmbedding, int limit)
     {
-        var all = await _collection.Find(FilterDefinition<DocumentChunk>.Empty).ToListAsync();
-        return all
+        var all = await GetAllChunksAsync();
+        if (all.Count == 0) return [];
+
+        var top = all
             .Select(doc => (doc, score: CosineSimilarity(queryEmbedding, doc.Embedding)))
             .OrderByDescending(x => x.score)
             .Take(limit)
-            .Select(x => x.doc)
             .ToList();
+
+        _logger.LogInformation("CosineSimFallback: top score={TopScore:F4}, bottom score={BottomScore:F4}",
+            top.FirstOrDefault().score, top.LastOrDefault().score);
+
+        return top.Select(x => x.doc).ToList();
     }
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
-        if (a.Length != b.Length) return 0f;
+        if (a == null || b == null || a.Length != b.Length) return 0f;
         float dot = 0, normA = 0, normB = 0;
         for (int i = 0; i < a.Length; i++)
         {
@@ -136,7 +183,6 @@ public class MongoDbService : IMongoDbService
 
     public async Task SaveFileMetadataAsync(FileMetadata metadata)
     {
-        // Upsert by FileName so re-uploading a file name replaces its metadata
         await _fileMetadata.ReplaceOneAsync(
             Builders<FileMetadata>.Filter.Eq(x => x.FileName, metadata.FileName),
             metadata,

@@ -103,14 +103,17 @@ export class FileUploadComponent implements OnInit {
   }
 
   private uploadFile(state: FileUploadState, file: File) {
-    state.status = 'uploading';
-    state.message = 'Uploading...';
+    this.uploadStates.update(states =>
+      states.map(s => s.file === file ? { ...s, status: 'uploading', message: 'Uploading...' } : s)
+    );
 
     this.fileService.uploadFile(file).subscribe({
       next: (progress: UploadProgress) => {
         this.uploadStates.update(states =>
-          states.map(s => s === state
-            ? { ...s, progress: progress.progress, status: progress.response ? (progress.response.success ? 'done' : 'error') : 'uploading',
+          states.map(s => s.file === file
+            ? { ...s,
+                progress: progress.progress,
+                status: progress.response ? (progress.response.success ? 'done' : 'error') : 'uploading',
                 message: progress.response
                   ? (progress.response.success
                       ? (progress.response.isDuplicate
@@ -125,7 +128,7 @@ export class FileUploadComponent implements OnInit {
       },
       error: () => {
         this.uploadStates.update(states =>
-          states.map(s => s === state
+          states.map(s => s.file === file
             ? { ...s, status: 'error', message: 'Upload failed. Check backend connection.' }
             : s)
         );

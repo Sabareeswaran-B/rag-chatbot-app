@@ -10,12 +10,11 @@ namespace RagChatbot.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-public class ChatController(IChatService chatService) : ControllerBase
+public class ChatController(IChatService chatService, ILogger<ChatController> logger) : ControllerBase
 {
     private string GetUserId() =>
         User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
         ?? Request.Headers["X-Anonymous-Id"].FirstOrDefault()
-        ?? HttpContext.Connection.RemoteIpAddress?.ToString()
         ?? "anonymous";
 
     /// <summary>
@@ -33,14 +32,25 @@ public class ChatController(IChatService chatService) : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Query))
             return BadRequest(new ChatResponse { Success = false, Error = "Query cannot be empty." });
 
+        var userId = GetUserId();
+        logger.LogInformation("Chat request — userId={UserId} sessionId={SessionId} query={Query}",
+            userId, request.SessionId ?? "new", request.Query.Length > 80 ? request.Query[..80] + "…" : request.Query);
+
         try
         {
-            var userId = GetUserId();
             var response = await chatService.GetAnswerAsync(request.Query, request.SessionId, userId);
+
+            if (response.Error != null)
+                logger.LogWarning("Chat returned error — userId={UserId} error={Error}", userId, response.Error);
+            else
+                logger.LogInformation("Chat complete — userId={UserId} sessionId={SessionId} sources={SourceCount}",
+                    userId, response.SessionId, response.Sources?.Count ?? 0);
+
             return Ok(response);
         }
         catch (Exception ex)
         {
+            logger.LogError(ex, "Chat unhandled exception — userId={UserId} query={Query}", userId, request.Query);
             return StatusCode(500, new ChatResponse { Success = false, Error = ex.Message });
         }
     }

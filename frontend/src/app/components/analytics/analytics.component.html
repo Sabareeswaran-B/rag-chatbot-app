@@ -73,7 +73,7 @@
                     <div class="user-dot" [class.dot-admin]="user.isAdmin" [class.dot-anon]="user.isAnonymous" [class.dot-expired]="user.isExpired"></div>
                     <span class="user-name">{{ user.username }}</span>
                     @if (user.isAdmin) { <span class="badge-tag admin">Admin</span> }
-                    @if (user.isAnonymous) { <span class="badge-tag anon">Anon</span> }
+                    @if (user.isAnonymous) { <span class="badge-tag anon">Anonymous</span> }
                     @if (user.isExpired) { <span class="badge-tag expired">Credits Expired</span> }
                     @if (user.isBlocked) { <span class="badge-tag blocked">Blocked</span> }
                   </div>
@@ -241,7 +241,7 @@
                     <div class="user-cell">
                       <div class="user-dot" [class.dot-anon]="v.isAnonymous" [class.dot-blocked]="v.isBlocked"></div>
                       <span class="user-name">{{ v.username }}</span>
-                      @if (v.isAnonymous) { <span class="badge-tag anon">Anon</span> }
+                      @if (v.isAnonymous) { <span class="badge-tag anon">Anonymous</span> }
                       @if (v.isBlocked) { <span class="badge-tag blocked">Blocked</span> }
                     </div>
                   </td>

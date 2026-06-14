@@ -16,7 +16,6 @@ public class ChatHistoryController(IChatHistoryRepository repo) : ControllerBase
     private string GetUserId() =>
         User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
         ?? Request.Headers["X-Anonymous-Id"].FirstOrDefault()
-        ?? HttpContext.Connection.RemoteIpAddress?.ToString()
         ?? "anonymous";
 
     /// <summary>Get the 30 most recent chat sessions for the current user (messages excluded).</summary>

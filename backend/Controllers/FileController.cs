@@ -13,7 +13,11 @@ namespace RagChatbot.API.Controllers;
 [Route("api/[controller]")]
 [Authorize]
 [Produces("application/json")]
-public class FileController(IFileProcessingService fileProcessingService, IEmbeddingService embeddingService, IMongoDbService mongoDbService) : ControllerBase
+public class FileController(
+    IFileProcessingService fileProcessingService,
+    IEmbeddingService embeddingService,
+    IMongoDbService mongoDbService,
+    ILogger<FileController> logger) : ControllerBase
 {
     /// <summary>
     /// Upload a document. Admin only. Computes a SHA-256 content hash — if the same content is
@@ -29,6 +33,8 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
     [ProducesResponseType(typeof(UploadResponse), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<UploadResponse>> Upload(IFormFile file)
     {
+        logger.LogInformation("Upload started: {FileName}, size={Size} bytes", file?.FileName, file?.Length);
+
         if (file == null || file.Length == 0)
             return BadRequest(new UploadResponse { Success = false, Error = "No file provided." });
 
@@ -36,20 +42,28 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
         var isPdf = ext == ".pdf";
         var maxBytes = isPdf ? 25 * 1024 * 1024 : 100 * 1024 * 1024;
         if (file.Length > maxBytes)
+        {
+            logger.LogWarning("Upload rejected — file too large: {FileName} ({Size} bytes)", file.FileName, file.Length);
             return BadRequest(new UploadResponse
             {
                 Success = false,
                 Error = isPdf ? "PDF files are limited to 25 MB." : "Files are limited to 100 MB."
             });
+        }
 
         // Compute SHA-256 content hash
+        logger.LogInformation("Computing SHA-256 hash for {FileName}", file.FileName);
         string contentHash;
         using (var hashStream = file.OpenReadStream())
             contentHash = Convert.ToHexString(SHA256.HashData(hashStream)).ToLowerInvariant();
+        logger.LogInformation("Hash computed: {Hash}", contentHash[..16] + "...");
 
         // Duplicate check — same content already indexed?
+        logger.LogInformation("Checking for duplicate content hash");
         var existing = await mongoDbService.GetFileByHashAsync(contentHash);
         if (existing != null)
+        {
+            logger.LogInformation("Duplicate detected — content already indexed as {ExistingFile}", existing.FileName);
             return Ok(new UploadResponse
             {
                 Success = true,
@@ -58,24 +72,34 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
                 ExistingFileName = existing.FileName,
                 ChunksCreated = existing.ChunkCount
             });
+        }
 
         try
         {
+            logger.LogInformation("Extracting and chunking text from {FileName}", file.FileName);
             var chunks = await fileProcessingService.ExtractAndChunkAsync(file);
-            if (chunks.Count == 0)
-                return BadRequest(new UploadResponse { Success = false, Error = "Could not extract text from file." });
+            logger.LogInformation("Extracted {ChunkCount} chunks from {FileName}", chunks.Count, file.FileName);
 
-            var embeddings = new List<float[]>();
-            foreach (var chunk in chunks)
-                embeddings.Add(await embeddingService.GetEmbeddingAsync(chunk));
+            if (chunks.Count == 0)
+            {
+                logger.LogWarning("No text extracted from {FileName}", file.FileName);
+                return BadRequest(new UploadResponse { Success = false, Error = "Could not extract text from file." });
+            }
+
+            logger.LogInformation("Generating embeddings for {ChunkCount} chunks (single batch request)", chunks.Count);
+            var embeddings = await embeddingService.GetEmbeddingsAsync(chunks);
+            logger.LogInformation("Embeddings generated: {EmbeddingCount} vectors", embeddings.Count);
 
             var fileType = ext.TrimStart('.');
+            logger.LogInformation("Saving {ChunkCount} chunks to MongoDB", chunks.Count);
             await mongoDbService.SaveChunksAsync(file.FileName, chunks, embeddings, fileType, contentHash);
+            logger.LogInformation("Chunks saved successfully");
 
             var uploader = User.FindFirst("unique_name")?.Value
                 ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
                 ?? "unknown";
 
+            logger.LogInformation("Saving file metadata for {FileName}", file.FileName);
             await mongoDbService.SaveFileMetadataAsync(new FileMetadata
             {
                 FileName = file.FileName,
@@ -87,6 +111,7 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
                 UploadedBy = uploader
             });
 
+            logger.LogInformation("Upload complete: {FileName}, {ChunkCount} chunks indexed", file.FileName, chunks.Count);
             return Ok(new UploadResponse
             {
                 Success = true,
@@ -96,10 +121,12 @@ public class FileController(IFileProcessingService fileProcessingService, IEmbed
         }
         catch (NotSupportedException ex)
         {
+            logger.LogWarning("Unsupported file type {FileName}: {Message}", file.FileName, ex.Message);
             return BadRequest(new UploadResponse { Success = false, Error = ex.Message });
         }
         catch (Exception ex)
         {
+            logger.LogError(ex, "Upload failed for {FileName}: {Message}", file.FileName, ex.Message);
             return StatusCode(500, new UploadResponse { Success = false, Error = ex.Message });
         }
     }

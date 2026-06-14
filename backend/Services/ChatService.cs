@@ -15,12 +15,14 @@ public class ChatService : IChatService
     private readonly IModerationViolationRepository _violationRepo;
     private readonly IMultiQueryService _multiQueryService;
     private readonly ChatClient _chatClient;
+    private readonly ILogger<ChatService> _logger;
 
     public ChatService(IEmbeddingService embeddingService, IMongoDbService mongoDbService,
         IChatHistoryRepository historyRepo, IUserRepository userRepo,
         IRerankingService rerankingService, IQueryRewriteService queryRewriteService,
         IModerationService moderationService, IModerationViolationRepository violationRepo,
-        IMultiQueryService multiQueryService, IConfiguration configuration)
+        IMultiQueryService multiQueryService, IConfiguration configuration,
+        ILogger<ChatService> logger)
     {
         _embeddingService = embeddingService;
         _mongoDbService = mongoDbService;
@@ -31,16 +33,21 @@ public class ChatService : IChatService
         _moderationService = moderationService;
         _violationRepo = violationRepo;
         _multiQueryService = multiQueryService;
+        _logger = logger;
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
         _chatClient = new ChatClient("gpt-4o-mini", apiKey);
     }
 
     public async Task<ChatResponse> GetAnswerAsync(string query, string? sessionId, string userId)
     {
-        // Check token limit for registered users
+        _logger.LogInformation("[Chat] Pipeline start — userId={UserId} sessionId={SessionId}", userId, sessionId ?? "new");
+
+        // 1. Token limit check
         var user = await _userRepo.GetByIdAsync(userId);
         if (user != null && user.TokenLimit > 0 && user.TokensUsed >= user.TokenLimit)
         {
+            _logger.LogWarning("[Chat] Token limit exceeded — userId={UserId} used={Used} limit={Limit}",
+                userId, user.TokensUsed, user.TokenLimit);
             return new ChatResponse
             {
                 Answer = "Your token limit has been exhausted. Please contact an administrator to add more tokens.",
@@ -48,10 +55,12 @@ public class ChatService : IChatService
             };
         }
 
-        // Moderation check — runs built-in API + LLM check in parallel
+        // 2. Moderation — built-in API + LLM check in parallel
+        _logger.LogInformation("[Chat] Running moderation check");
         var (moderation, modInputTokens, modOutputTokens) = await _moderationService.CheckAsync(query);
         if (moderation.IsFlagged)
         {
+            _logger.LogWarning("[Chat] Query flagged — userId={UserId} category={Category}", userId, moderation.Category);
             var username = user?.Username ?? $"anon-{userId[..Math.Min(8, userId.Length)]}";
             await _violationRepo.SaveAsync(new ModerationViolation
             {
@@ -69,41 +78,62 @@ public class ChatService : IChatService
                 Sources = [], Success = false, Error = "CONTENT_MODERATED"
             };
         }
+        _logger.LogInformation("[Chat] Moderation passed (tokens: in={In} out={Out})", modInputTokens, modOutputTokens);
 
-        // Load recent history to rewrite follow-up queries into self-contained search queries
+        // 3. Load session history
         List<SessionMessage> recentHistory = [];
         if (sessionId != null)
         {
             var existingSession = await _historyRepo.GetAsync(sessionId, userId);
             recentHistory = existingSession?.Messages.TakeLast(6).ToList() ?? [];
+            _logger.LogInformation("[Chat] Loaded {MsgCount} history messages for session {SessionId}", recentHistory.Count, sessionId);
         }
 
+        // 4. Query rewrite
+        _logger.LogInformation("[Chat] Rewriting query with history context");
         var (searchQuery, rewriteInput, rewriteOutput) = await _queryRewriteService.RewriteAsync(query, recentHistory);
+        _logger.LogInformation("[Chat] Rewritten query: {SearchQuery} (tokens: in={In} out={Out})",
+            searchQuery.Length > 100 ? searchQuery[..100] + "…" : searchQuery, rewriteInput, rewriteOutput);
 
-        // Generate query variations and embed original in parallel
+        // 5. Generate variations + embed original in parallel
+        _logger.LogInformation("[Chat] Generating query variations and primary embedding in parallel");
         var variationsTask = _multiQueryService.GenerateVariationsAsync(searchQuery);
         var primaryEmbeddingTask = _embeddingService.GetEmbeddingAsync(searchQuery);
         await Task.WhenAll(variationsTask, primaryEmbeddingTask);
 
         var (variations, mqInput, mqOutput) = variationsTask.Result;
         var primaryEmbedding = primaryEmbeddingTask.Result;
+        _logger.LogInformation("[Chat] Got {VariationCount} query variations (tokens: in={In} out={Out})", variations.Count, mqInput, mqOutput);
 
-        // Run vector searches for original + all variations in parallel (10 candidates each)
-        var searchTasks = new List<Task<List<DocumentChunk>>>
+        // 6. Fan-out vector searches in parallel (10 candidates each)
+        // For cosine fallback: load all chunks once, then score in-memory — avoids N redundant DB round-trips.
+        _logger.LogInformation("[Chat] Running {SearchCount} vector searches in parallel", variations.Count + 1);
+        var allChunks = await _mongoDbService.GetAllChunksAsync();
+
+        List<Task<List<DocumentChunk>>> searchTasks;
+        if (allChunks.Count == 0)
         {
-            _mongoDbService.VectorSearchAsync(primaryEmbedding, 10)
-        };
-        foreach (var variation in variations)
-        {
-            searchTasks.Add(Task.Run(async () =>
-            {
-                var emb = await _embeddingService.GetEmbeddingAsync(variation);
-                return await _mongoDbService.VectorSearchAsync(emb, 10);
-            }));
+            _logger.LogWarning("[Chat] No chunks in collection — skipping vector search");
+            searchTasks = [];
         }
-        await Task.WhenAll(searchTasks);
+        else
+        {
+            searchTasks =
+            [
+                Task.FromResult(_mongoDbService.VectorSearchInMemory(primaryEmbedding, allChunks, 10))
+            ];
+            foreach (var variation in variations)
+            {
+                searchTasks.Add(Task.Run(async () =>
+                {
+                    var emb = await _embeddingService.GetEmbeddingAsync(variation);
+                    return _mongoDbService.VectorSearchInMemory(emb, allChunks, 10);
+                }));
+            }
+            await Task.WhenAll(searchTasks);
+        }
 
-        // Deduplicate by chunk ID, preserving order (primary results first)
+        // 7. Deduplicate by chunk ID
         var seen = new HashSet<string>();
         var candidates = new List<DocumentChunk>();
         foreach (var chunk in searchTasks.SelectMany(t => t.Result))
@@ -111,9 +141,11 @@ public class ChatService : IChatService
             if (chunk.Id != null && seen.Add(chunk.Id))
                 candidates.Add(chunk);
         }
+        _logger.LogInformation("[Chat] Vector search complete — {CandidateCount} unique candidates after dedup", candidates.Count);
 
         if (candidates.Count == 0)
         {
+            _logger.LogWarning("[Chat] No relevant documents found for query");
             var noDocResponse = new ChatResponse
             {
                 Answer = "I don't have any relevant documents to answer your question. Please upload some documents first.",
@@ -125,7 +157,11 @@ public class ChatService : IChatService
             return noDocResponse;
         }
 
+        // 8. Rerank
+        _logger.LogInformation("[Chat] Reranking {CandidateCount} candidates to top 5", candidates.Count);
         var (relevantChunks, rerankInput, rerankOutput) = await _rerankingService.RerankAsync(searchQuery, candidates, topK: 5);
+        _logger.LogInformation("[Chat] Reranking complete — {ChunkCount} chunks selected (tokens: in={In} out={Out})",
+            relevantChunks.Count, rerankInput, rerankOutput);
 
         var contextBuilder = new System.Text.StringBuilder();
         for (int i = 0; i < relevantChunks.Count; i++)
@@ -163,7 +199,6 @@ public class ChatService : IChatService
             """;
 
         var chatMessages = new List<ChatMessage> { new SystemChatMessage(systemPrompt) };
-
         foreach (var msg in recentHistory)
         {
             if (msg.Role == "user")
@@ -171,10 +206,11 @@ public class ChatService : IChatService
             else
                 chatMessages.Add(new AssistantChatMessage(msg.Content));
         }
-
         chatMessages.Add(new UserChatMessage(userMessage));
 
+        // 9. LLM completion + session name in parallel
         bool isNew = sessionId == null;
+        _logger.LogInformation("[Chat] Calling LLM ({MsgCount} messages, isNewSession={IsNew})", chatMessages.Count, isNew);
         var completionTask = _chatClient.CompleteChatAsync(chatMessages);
         var nameTask = isNew
             ? GenerateSessionNameAsync(query)
@@ -188,15 +224,21 @@ public class ChatService : IChatService
         var mainOutputTokens = (int)(completionResult.Usage?.OutputTokenCount ?? 0);
         var (sessionName, nameInput, nameOutput) = nameTask.Result;
 
+        // 10. Accumulate tokens
         var totalInputTokens = mainInputTokens + rewriteInput + rerankInput + nameInput + modInputTokens + mqInput;
         var totalOutputTokens = mainOutputTokens + rewriteOutput + rerankOutput + nameOutput + modOutputTokens + mqOutput;
+        _logger.LogInformation("[Chat] LLM complete — tokens: main=({In}/{Out}) total=({TotalIn}/{TotalOut})",
+            mainInputTokens, mainOutputTokens, totalInputTokens, totalOutputTokens);
 
         var response = ParseResponse(rawResponse, relevantChunks);
+        _logger.LogInformation("[Chat] Persisting session — isNew={IsNew} sessionName={Name}", isNew, isNew ? sessionName : "(existing)");
         await PersistToSessionAsync(sessionId, userId, query, response, totalInputTokens, totalOutputTokens, isNew, sessionName);
 
         if (user != null && totalInputTokens + totalOutputTokens > 0)
             await _userRepo.IncrementTokensUsedAsync(userId, totalInputTokens + totalOutputTokens);
 
+        _logger.LogInformation("[Chat] Pipeline complete — sessionId={SessionId} sources={Sources}",
+            response.SessionId, string.Join(", ", response.Sources ?? []));
         return response;
     }
 
@@ -245,9 +287,14 @@ public class ChatService : IChatService
             var name = result.Value.Content[0].Text.Trim().Trim('"').Trim('.');
             var inputTokens = (int)(result.Value.Usage?.InputTokenCount ?? 0);
             var outputTokens = (int)(result.Value.Usage?.OutputTokenCount ?? 0);
+            _logger.LogInformation("[Chat] Session name generated: \"{Name}\" (tokens: in={In} out={Out})", name, inputTokens, outputTokens);
             return (name, inputTokens, outputTokens);
         }
-        catch { return ("New Chat", 0, 0); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Chat] Session name generation failed, using default");
+            return ("New Chat", 0, 0);
+        }
     }
 
     private ChatResponse ParseResponse(string rawResponse, List<DocumentChunk> chunks)
@@ -276,8 +323,9 @@ public class ChatService : IChatService
                 Success = true
             };
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "[Chat] Failed to parse LLM JSON response, returning raw text");
             return new ChatResponse
             {
                 Answer = rawResponse,

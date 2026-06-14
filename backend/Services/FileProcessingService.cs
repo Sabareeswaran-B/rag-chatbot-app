@@ -8,39 +8,79 @@ public class FileProcessingService : IFileProcessingService
 {
     private const int ChunkSize = 1000;
     private const int Overlap = 200;
+    private const int MaxChunks = 2000;
+
+    private readonly ILogger<FileProcessingService> _logger;
+
+    public FileProcessingService(ILogger<FileProcessingService> logger)
+    {
+        _logger = logger;
+    }
 
     public async Task<List<string>> ExtractAndChunkAsync(IFormFile file)
     {
-        var text = await ExtractTextAsync(file);
-        return ChunkText(text);
+        _logger.LogInformation("Buffering {FileName} ({Size} bytes) into memory", file.FileName, file.Length);
+
+        // Copy to MemoryStream once — avoids thread-affinity issues when passing to Task.Run,
+        // and ensures the stream is at position 0 regardless of prior reads (e.g. SHA-256 hashing).
+        using var ms = new MemoryStream((int)file.Length);
+        await file.CopyToAsync(ms);
+        ms.Position = 0;
+
+        _logger.LogInformation("Buffer complete, starting text extraction for {FileName}", file.FileName);
+        var text = await ExtractTextAsync(file.FileName, ms);
+
+        _logger.LogInformation("Extraction complete, {CharCount} chars extracted from {FileName}. Starting chunking.", text.Length, file.FileName);
+        var chunks = await Task.Run(() => ChunkText(text));
+
+        _logger.LogInformation("Chunking complete: {ChunkCount} chunks from {FileName}", chunks.Count, file.FileName);
+        return chunks;
     }
 
-    private async Task<string> ExtractTextAsync(IFormFile file)
+    private async Task<string> ExtractTextAsync(string fileName, MemoryStream ms)
     {
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        using var stream = file.OpenReadStream();
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
 
         return extension switch
         {
-            ".pdf" => ExtractFromPdf(stream),
-            ".docx" => ExtractFromDocx(stream),
-            ".txt" or ".md" or ".csv" => await ExtractFromTextAsync(stream),
+            ".pdf" => await Task.Run(() =>
+            {
+                _logger.LogInformation("PDF extraction started for {FileName}", fileName);
+                var result = ExtractFromPdf(ms);
+                _logger.LogInformation("PDF extraction finished for {FileName}", fileName);
+                return result;
+            }),
+            ".docx" => await Task.Run(() =>
+            {
+                _logger.LogInformation("DOCX extraction started for {FileName}", fileName);
+                var result = ExtractFromDocx(ms);
+                _logger.LogInformation("DOCX extraction finished for {FileName}", fileName);
+                return result;
+            }),
+            ".txt" or ".md" or ".csv" => await ExtractFromTextAsync(ms),
             _ => throw new NotSupportedException($"File type '{extension}' is not supported. Use PDF, DOCX, TXT, MD, or CSV.")
         };
     }
 
-    private string ExtractFromPdf(Stream stream)
+    private string ExtractFromPdf(MemoryStream ms)
     {
-        using var pdf = PdfDocument.Open(stream);
+        using var pdf = PdfDocument.Open(ms);
         var sb = new System.Text.StringBuilder();
+        var pageCount = 0;
         foreach (var page in pdf.GetPages())
+        {
             sb.AppendLine(page.Text);
+            pageCount++;
+            if (pageCount % 10 == 0)
+                _logger.LogInformation("PDF: processed {PageCount} pages so far", pageCount);
+        }
+        _logger.LogInformation("PDF: total {PageCount} pages processed", pageCount);
         return sb.ToString();
     }
 
-    private string ExtractFromDocx(Stream stream)
+    private string ExtractFromDocx(MemoryStream ms)
     {
-        using var doc = WordprocessingDocument.Open(stream, false);
+        using var doc = WordprocessingDocument.Open(ms, false);
         var body = doc.MainDocumentPart?.Document?.Body;
         if (body == null) return string.Empty;
         var sb = new System.Text.StringBuilder();
@@ -49,9 +89,9 @@ public class FileProcessingService : IFileProcessingService
         return sb.ToString();
     }
 
-    private async Task<string> ExtractFromTextAsync(Stream stream)
+    private async Task<string> ExtractFromTextAsync(MemoryStream ms)
     {
-        using var reader = new StreamReader(stream);
+        using var reader = new StreamReader(ms);
         return await reader.ReadToEndAsync();
     }
 
@@ -68,10 +108,9 @@ public class FileProcessingService : IFileProcessingService
         }
 
         int start = 0;
-        while (start < cleanText.Length)
+        while (start < cleanText.Length && chunks.Count < MaxChunks)
         {
             int end = Math.Min(start + ChunkSize, cleanText.Length);
-            // Try to break at a sentence boundary
             if (end < cleanText.Length)
             {
                 int lastPeriod = cleanText.LastIndexOfAny(['.', '!', '?', '\n'], end, Math.Min(100, end - start));
@@ -82,6 +121,11 @@ public class FileProcessingService : IFileProcessingService
             start = end - Overlap;
             if (start >= cleanText.Length) break;
         }
+
+        if (chunks.Count == MaxChunks)
+            _logger.LogWarning("Chunk cap reached ({MaxChunks}) for {FileName} — document truncated at {CharCount}/{TotalChars} chars",
+                MaxChunks, "file", start, cleanText.Length);
+
         return chunks;
     }
 }
