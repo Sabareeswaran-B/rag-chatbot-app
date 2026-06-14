@@ -31,6 +31,13 @@
             </svg>
             Files
           </button>
+          <button class="tab-btn" [class.active]="activeTab() === 'analytics'" (click)="setTab('analytics')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            Analytics
+          </button>
         }
       </nav>
 
@@ -64,8 +71,10 @@
     <main class="app-main">
       @if (activeTab() === 'chat') {
         <app-chat />
-      } @else {
+      } @else if (activeTab() === 'upload') {
         <app-file-upload />
+      } @else if (activeTab() === 'analytics') {
+        <app-analytics />
       }
     </main>
   </div>

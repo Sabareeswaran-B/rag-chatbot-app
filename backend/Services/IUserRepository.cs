@@ -8,6 +8,7 @@ public interface IUserRepository
     Task<User?> GetByIdAsync(string id);
     Task<User> CreateAsync(User user);
     Task<long> CountAsync();
+    Task<List<User>> GetAllUsersAsync();
     Task SaveTokenAsync(StoredToken token);
     Task<StoredToken?> GetTokenAsync(string tokenHash, string tokenType);
     Task RevokeTokenAsync(string tokenHash);

@@ -11,6 +11,8 @@ public class ChatSession
     public string UserId { get; set; } = string.Empty;
     public string Name { get; set; } = "New Chat";
     public List<SessionMessage> Messages { get; set; } = new();
+    public long TotalInputTokens { get; set; }
+    public long TotalOutputTokens { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

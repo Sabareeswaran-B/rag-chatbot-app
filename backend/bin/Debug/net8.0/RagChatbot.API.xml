@@ -4,6 +4,18 @@
         <name>RagChatbot.API</name>
     </assembly>
     <members>
+        <member name="T:RagChatbot.API.Controllers.AnalyticsController">
+            <summary>Analytics — admin-only token usage and cost statistics per user and session.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.AnalyticsController.#ctor(RagChatbot.API.Services.IChatHistoryRepository,RagChatbot.API.Services.IUserRepository)">
+            <summary>Analytics — admin-only token usage and cost statistics per user and session.</summary>
+        </member>
+        <member name="M:RagChatbot.API.Controllers.AnalyticsController.GetAnalytics">
+            <summary>
+            Returns aggregated token usage and cost for all users (including zero-usage registered users),
+            ordered by most recent activity, plus the top 5 most expensive sessions with full message history.
+            </summary>
+        </member>
         <member name="T:RagChatbot.API.Controllers.AuthController">
             <summary>Authentication — login, token refresh, remember-me, and first-run admin setup.</summary>
         </member>

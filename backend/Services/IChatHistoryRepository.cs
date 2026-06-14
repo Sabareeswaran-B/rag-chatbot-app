@@ -11,4 +11,5 @@ public interface IChatHistoryRepository
     Task DeleteAsync(string sessionId, string userId);
     Task DeleteAllAsync(string userId);
     Task EnforceCapAsync(string userId, int maxCount);
+    Task<List<ChatSession>> GetAllSessionsForAnalyticsAsync();
 }

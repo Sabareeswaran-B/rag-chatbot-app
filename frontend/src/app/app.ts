@@ -3,19 +3,22 @@ import { CommonModule } from '@angular/common';
 import { ChatComponent } from './components/chat/chat.component';
 import { FileUploadComponent } from './components/file-upload/file-upload.component';
 import { LoginComponent } from './components/login/login.component';
+import { AnalyticsComponent } from './components/analytics/analytics.component';
 import { AuthService } from './services/auth.service';
+
+type Tab = 'chat' | 'upload' | 'analytics';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, ChatComponent, FileUploadComponent, LoginComponent],
+  imports: [CommonModule, ChatComponent, FileUploadComponent, LoginComponent, AnalyticsComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
 export class App implements OnInit {
   authService = inject(AuthService);
 
-  activeTab = signal<'chat' | 'upload'>('chat');
+  activeTab = signal<Tab>('chat');
   showLogin = signal(true);
   isInitialized = signal(false);
 
@@ -37,8 +40,8 @@ export class App implements OnInit {
     this.showLogin.set(true);
   }
 
-  setTab(tab: 'chat' | 'upload') {
-    if (tab === 'upload' && !this.authService.isAdmin) return;
+  setTab(tab: Tab) {
+    if ((tab === 'upload' || tab === 'analytics') && !this.authService.isAdmin) return;
     this.activeTab.set(tab);
   }
 }

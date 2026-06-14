@@ -61,4 +61,9 @@ public class ChatHistoryRepository : IChatHistoryRepository
             await _collection.DeleteManyAsync(s => toDelete.Contains(s.Id!));
         }
     }
+
+    public async Task<List<ChatSession>> GetAllSessionsForAnalyticsAsync()
+        => await _collection.Find(MongoDB.Driver.FilterDefinition<ChatSession>.Empty)
+            .SortByDescending(s => s.UpdatedAt)
+            .ToListAsync();
 }

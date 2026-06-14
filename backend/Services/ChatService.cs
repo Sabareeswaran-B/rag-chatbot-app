@@ -32,7 +32,7 @@ public class ChatService : IChatService
                 Answer = "I don't have any relevant documents to answer your question. Please upload some documents first.",
                 Sources = [], Success = true
             };
-            await PersistToSessionAsync(sessionId, userId, query, noDocResponse);
+            await PersistToSessionAsync(sessionId, userId, query, noDocResponse, 0, 0);
             return noDocResponse;
         }
 
@@ -76,23 +76,26 @@ public class ChatService : IChatService
             new UserChatMessage(userMessage)
         };
 
-        // Run chat completion and (for new sessions) name generation in parallel
         bool isNew = sessionId == null;
         var completionTask = _chatClient.CompleteChatAsync(chatMessages);
         var nameTask = isNew ? GenerateSessionNameAsync(query) : Task.FromResult("New Chat");
 
         await Task.WhenAll(completionTask, nameTask);
 
-        var rawResponse = completionTask.Result.Value.Content[0].Text;
+        var completionResult = completionTask.Result.Value;
+        var rawResponse = completionResult.Content[0].Text;
+        var inputTokens = (int)(completionResult.Usage?.InputTokenCount ?? 0);
+        var outputTokens = (int)(completionResult.Usage?.OutputTokenCount ?? 0);
         var sessionName = nameTask.Result;
 
         var response = ParseResponse(rawResponse, relevantChunks);
-        await PersistToSessionAsync(sessionId, userId, query, response, isNew, sessionName);
+        await PersistToSessionAsync(sessionId, userId, query, response, inputTokens, outputTokens, isNew, sessionName);
         return response;
     }
 
     private async Task PersistToSessionAsync(string? sessionId, string userId, string query,
-        ChatResponse response, bool isNew = false, string sessionName = "New Chat")
+        ChatResponse response, int inputTokens, int outputTokens,
+        bool isNew = false, string sessionName = "New Chat")
     {
         ChatSession session;
         if (isNew)
@@ -110,6 +113,8 @@ public class ChatService : IChatService
             response.SessionId = session.Id;
         }
 
+        session.TotalInputTokens += inputTokens;
+        session.TotalOutputTokens += outputTokens;
         session.Messages.Add(new SessionMessage { Role = "user", Content = query });
         session.Messages.Add(new SessionMessage
         {

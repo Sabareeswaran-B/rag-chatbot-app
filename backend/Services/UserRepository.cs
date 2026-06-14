@@ -43,6 +43,11 @@ public class UserRepository : IUserRepository
     public async Task<long> CountAsync()
         => await _users.CountDocumentsAsync(FilterDefinition<User>.Empty);
 
+    public async Task<List<User>> GetAllUsersAsync()
+        => await _users.Find(MongoDB.Driver.FilterDefinition<User>.Empty)
+            .SortByDescending(u => u.CreatedAt)
+            .ToListAsync();
+
     public async Task SaveTokenAsync(StoredToken token)
         => await _tokens.InsertOneAsync(token);
 
