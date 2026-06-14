@@ -53,3 +53,4 @@
 /Users/sabareeswaranb/rag-chatbot-app/backend/obj/Debug/net8.0/RagChatbot.API.pdb
 /Users/sabareeswaranb/rag-chatbot-app/backend/obj/Debug/net8.0/RagChatbot.API.genruntimeconfig.cache
 /Users/sabareeswaranb/rag-chatbot-app/backend/obj/Debug/net8.0/ref/RagChatbot.API.dll
+/Users/sabareeswaranb/rag-chatbot-app/backend/obj/Debug/net8.0/RagChatbot.API.sourcelink.json

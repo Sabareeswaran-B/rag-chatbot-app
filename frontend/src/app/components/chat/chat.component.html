@@ -59,7 +59,8 @@
   <div class="input-area">
     <div class="input-wrapper" [class.disabled]="isLoading()">
       <textarea
-        [(ngModel)]="query"
+        [ngModel]="query()"
+        (ngModelChange)="query.set($event)"
         (keydown)="onKeyDown($event)"
         placeholder="Ask a question about your documents..."
         rows="1"

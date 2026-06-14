@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("ragchatbot-api-secrets")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("RagChatbot.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+20e2211aa4053333d43d677b71e4530188897e3c")]
 [assembly: System.Reflection.AssemblyProductAttribute("RagChatbot.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RagChatbot.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
