@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpEventType } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface UploadResponse {
   success: boolean;
@@ -30,7 +31,7 @@ export interface UploadProgress {
 @Injectable({ providedIn: 'root' })
 export class FileService {
   private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:5000/api';
+  private baseUrl = environment.apiBaseUrl;
 
   uploadFile(file: File): Observable<UploadProgress> {
     const formData = new FormData();

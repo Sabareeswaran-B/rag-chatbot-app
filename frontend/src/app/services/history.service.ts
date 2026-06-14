@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface ChatSessionSummary {
   id: string;
@@ -27,7 +28,7 @@ export interface ChatSessionDetail {
 @Injectable({ providedIn: 'root' })
 export class HistoryService {
   private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:5000/api/chathistory';
+  private baseUrl = `${environment.apiBaseUrl}/chathistory`;
 
   getSessions(): Observable<ChatSessionSummary[]> {
     return this.http.get<ChatSessionSummary[]>(this.baseUrl);

@@ -43,7 +43,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
-        policy.WithOrigins("http://localhost:4200", "http://localhost:4300")
+        policy.WithOrigins("http://localhost:4200", "http://localhost:4300", "https://ragbot-web.azurewebsites.net")
               .AllowAnyMethod()
               .AllowAnyHeader());
 });

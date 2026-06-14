@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of, tap, switchMap, catchError } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface AuthResponse {
   success: boolean;
@@ -23,7 +24,7 @@ export interface AuthState {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:5000/api/auth';
+  private baseUrl = `${environment.apiBaseUrl}/auth`;
 
   private _accessToken: string | null = null;
   private _refreshToken: string | null = null;

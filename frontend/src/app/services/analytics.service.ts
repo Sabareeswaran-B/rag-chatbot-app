@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface AnalyticsSummary {
   totalInputTokens: number;
@@ -77,7 +78,7 @@ export interface AnalyticsResponse {
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
   private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:5000/api/analytics';
+  private baseUrl = `${environment.apiBaseUrl}/analytics`;
 
   getAnalytics(): Observable<AnalyticsResponse> {
     return this.http.get<AnalyticsResponse>(this.baseUrl);
