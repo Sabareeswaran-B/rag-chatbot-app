@@ -6,8 +6,8 @@ namespace RagChatbot.API.Services;
 
 public class FileProcessingService : IFileProcessingService
 {
-    private const int ChunkSize = 1000;
-    private const int Overlap = 200;
+    private const int ChunkSize = 1500;
+    private const int Overlap = 0;
     private const int MaxChunks = 2000;
 
     private readonly ILogger<FileProcessingService> _logger;
@@ -118,8 +118,8 @@ public class FileProcessingService : IFileProcessingService
             }
             var chunk = cleanText[start..end].Trim();
             if (chunk.Length > 50) chunks.Add(chunk);
+            if (end >= cleanText.Length) break;
             start = end - Overlap;
-            if (start >= cleanText.Length) break;
         }
 
         if (chunks.Count == MaxChunks)
